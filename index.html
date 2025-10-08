@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="pageTitle">🏢 OM SAI APEKSHA Society</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="logo-container">
+                    <img src="society.logo.png" alt="Society Logo" class="society-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <i class="fas fa-building-user" style="display: none;"></i>
+                </div>
+                <h1 class="society-name" id="loginSocietyName">OM SAI APEKSHA CO-OPERATIVE HOUSING SOCIETY</h1>
+                <h3 class="system-title">Management Portal</h3>
+                <p class="tagline">Complete Digital Solution for Modern Living</p>
+            </div>
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="username">
+                        <i class="fas fa-envelope"></i>
+                        Email Address
+                    </label>
+                    <input type="email" id="username" name="username" placeholder="ghadageadhik99@gmail.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">
+                        <i class="fas fa-lock"></i>
+                        Password
+                    </label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <div class="form-group">
+                    <input type="checkbox" id="remember" name="remember">
+                    <label for="remember" class="checkbox-label">Remember me</label>
+                </div>
+                <button type="submit" class="login-btn">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Login as Manager
+                </button>
+                
+                <div class="divider">
+                    <span>OR</span>
+                </div>
+                
+                <button type="button" id="googleLoginBtn" class="google-login-btn">
+                    <i class="fab fa-google"></i>
+                    Sign in with Google
+                </button>
+                
+                <div class="login-links">
+                    <a href="#" id="forgotPassword">Forgot Password?</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="mainApp" class="main-app" style="display: none;">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <button class="mobile-menu-toggle" id="mobileMenuToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <i class="fas fa-building"></i>
+                <span id="societyName">Housing Co-operative Society</span>
+            </div>
+            <div class="header-right">
+                <div class="user-info">
+                    <i class="fas fa-user-circle"></i>
+                    <span>Manager</span>
+                </div>
+                <button id="logoutBtn" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <ul class="nav-menu">
+                <li class="nav-item active" data-section="dashboard">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>Dashboard</span>
+                </li>
+                <li class="nav-item" data-section="flats">
+                    <i class="fas fa-home"></i>
+                    <span>Flat & Members</span>
+                </li>
+                <li class="nav-item" data-section="billing">
+                    <i class="fas fa-file-invoice"></i>
+                    <span>Maintenance Billing</span>
+                </li>
+                <li class="nav-item" data-section="billconfig">
+                    <i class="fas fa-cogs"></i>
+                    <span>Bill Configuration</span>
+                </li>
+                <li class="nav-item" data-section="payments">
+                    <i class="fas fa-credit-card"></i>
+                    <span>Maintenance Bill Payment</span>
+                </li>
+                <li class="nav-item" data-section="expenses">
+                    <i class="fas fa-money-bill-wave"></i>
+                    <span>Expense Management</span>
+                </li>
+                <li class="nav-item" data-section="banks">
+                    <i class="fas fa-university"></i>
+                    <span>Bank Management</span>
+                </li>
+                <li class="nav-item" data-section="reports">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Reports</span>
+                </li>
+                <li class="nav-item" data-section="settings">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Mobile Sidebar Backdrop -->
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Dashboard Section -->
+            <section id="dashboardSection" class="content-section active">
+                <div class="section-header">
+                    <h2><i class="fas fa-tachometer-alt"></i> Dashboard</h2>
+                    <p>Society Overview and Quick Statistics</p>
+                </div>
+                
+                <div class="dashboard-cards">
+                    <div class="dashboard-card collection">
+                        <div class="card-icon">
+                            <i class="fas fa-rupee-sign"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalCollection">₹0</h3>
+                            <p>Total Collection (This Month)</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-card dues">
+                        <div class="card-icon">
+                            <i class="fas fa-exclamation-circle"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="pendingDues">₹0</h3>
+                            <p>Pending Dues</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-card flats">
+                        <div class="card-icon">
+                            <i class="fas fa-home"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalFlats">0</h3>
+                            <p>Total Flats</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-card expenses">
+                        <div class="card-icon">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="monthlyExpenses">₹0</h3>
+                            <p>Monthly Expenses</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-card banks">
+                        <div class="card-icon">
+                            <i class="fas fa-university"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalBankBalance">₹0</h3>
+                            <p>Total Bank Balance</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-card bills">
+                        <div class="card-icon">
+                            <i class="fas fa-file-invoice"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="totalBills">0</h3>
+                            <p>Bills Generated (This Month)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard widgets removed as requested -->
+            </section>
+
+            <!-- Flat & Members Section -->
+            <section id="flatsSection" class="content-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-home"></i> Flat & Member Management</h2>
+                    <div class="header-buttons">
+                        <button id="importMembersBtn" class="btn btn-secondary">
+                            <i class="fas fa-file-import"></i> Import Members
+                        </button>
+                        <button id="addFlatBtn" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Add New Flat
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="search-filter">
+                    <input type="text" id="flatSearch" placeholder="Search by flat number or member name...">
+                    <select id="flatFilter">
+                        <option value="">All Flats</option>
+                        <option value="owner">Owner Occupied</option>
+                        <option value="tenant">Tenant Occupied</option>
+                        <option value="vacant">Vacant</option>
+                    </select>
+                </div>
+
+                <div class="table-container">
+                    <table id="flatsTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Flat No.</th>
+                                <th>Wing</th>
+                                <th>Owner Name</th>
+                                <th>Mobile</th>
+                                <th>4W Parking</th>
+                                <th>3W Parking</th>
+                                <th>2W Parking</th>
+                                <th>Outstanding</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Flat data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Maintenance Billing Section -->
+            <section id="billingSection" class="content-section">
+                <div class="billing-header">
+                    <div class="billing-title">
+                        <h2><i class="fas fa-receipt"></i> Maintenance Bill</h2>
+                        <p>Manage monthly maintenance bills and track payments</p>
+                    </div>
+                    <div class="billing-actions">
+                        <button id="quickGenerateBillsBtn" class="btn-generate" onclick="quickGenerateMonthlyBills()">
+                            <i class="fas fa-plus-circle"></i> Generate Bills
+                        </button>
+                    </div>
+                </div>
+
+                <div class="billing-filters">
+                    <div class="filter-group">
+                        <label>Month</label>
+                        <select id="billingMonth" class="filter-select">
+                            <option value="01">January</option>
+                            <option value="02">February</option>
+                            <option value="03">March</option>
+                            <option value="04">April</option>
+                            <option value="05">May</option>
+                            <option value="06">June</option>
+                            <option value="07">July</option>
+                            <option value="08">August</option>
+                            <option value="09">September</option>
+                            <option value="10">October</option>
+                            <option value="11" selected>November</option>
+                            <option value="12">December</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Year</label>
+                        <select id="billingYear" class="filter-select">
+                            <!-- Years will be populated dynamically -->
+                        </select>
+                    </div>
+                </div>
+
+                <div class="maintenance-bill-container">
+                    <div class="maintenance-bill-header">
+                        <h3><i class="fas fa-file-invoice-dollar"></i> Maintenance Bills</h3>
+                    </div>
+                    <div class="maintenance-bill-content">
+                        <div class="table-responsive">
+                            <table id="billsTable" class="maintenance-bill-table">
+                        <thead>
+                            <tr>
+                                <th>Bill No.</th>
+                                <th>Flat</th>
+                                <th>Member Name</th>
+                                <th>Period</th>
+                                <th>Current Bill Amount</th>
+                                <th>Balance Amount</th>
+                                <th>Paid Amount</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Bills data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Bill Configuration Section -->
+            <section id="billconfigSection" class="content-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-cogs"></i> Bill Configuration</h2>
+                    <p>Set fixed amounts for maintenance bill heads that will be applied automatically</p>
+                </div>
+
+                <div class="config-container simple-layout">
+                    <div class="config-card simple-card">
+                        <div class="config-header simple-header">
+                            <h3>Maintenance Bill Heads Configuration</h3>
+                            <p>Configure fixed amounts for all maintenance charges</p>
+                        </div>
+                        
+                        <form id="billConfigForm" class="config-form simple-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Maintenance Charge (₹) *</label>
+                                    <input type="number" id="configMaintenanceCharge" value="5000" required>
+                                    <small>Monthly maintenance charge per flat</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Sinking Fund (₹)</label>
+                                    <input type="number" id="configSinkingFund" value="500">
+                                    <small>Monthly sinking fund contribution</small>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Non Occupancy Charges (₹)</label>
+                                    <input type="number" id="configNonOccupancyCharges" value="200">
+                                    <small>Additional charge for vacant flats</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Occupancy Charges (₹)</label>
+                                    <input type="number" id="configOccupancyCharges" value="50">
+                                    <small>Additional charge for tenant-occupied flats</small>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Festival Charges (₹)</label>
+                                    <input type="number" id="configFestivalCharges" value="100">
+                                    <small>Festival and celebration charges</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Building Maintenance Charges (₹)</label>
+                                    <input type="number" id="configBuildingMaintenanceCharges" value="400">
+                                    <small>Building repair and maintenance</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>NOC Charges (₹)</label>
+                                    <input type="number" id="configNOCCharges" value="0">
+                                    <small>No Objection Certificate charges</small>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Interest Rate (% per month)</label>
+                                    <input type="number" id="configInterestRate" value="1.5" step="0.1" min="0" max="10">
+                                    <small>Interest rate for overdue amounts</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Default Due Date (Day of Month)</label>
+                                    <input type="number" id="configDueDay" value="10" min="1" max="28">
+                                    <small>Default due date (day of next month)</small>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="configCalculateInterest" checked>
+                                    Auto-calculate interest on overdue amounts
+                                </label>
+                                <small>Automatically include interest calculation in bill generation</small>
+                            </div>
+                            
+                            
+                            <div class="config-actions">
+                                <button type="button" class="btn btn-secondary" onclick="resetConfigToDefaults()">
+                                    <i class="fas fa-undo"></i> Reset to Defaults
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Save Configuration
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div class="config-preview simple-preview">
+                        <div class="preview-header">
+                            <h4><i class="fas fa-eye"></i> Preview</h4>
+                        </div>
+                        
+                        <div class="preview-card">
+                            <h5>Sample Bill Amount</h5>
+                            <div class="preview-breakdown">
+                                <div class="preview-item">
+                                    <span>Maintenance Charge:</span>
+                                    <span id="previewMaintenance" class="amount">₹5,000</span>
+                                </div>
+                                <div class="preview-item">
+                                    <span>Sinking Fund:</span>
+                                    <span id="previewSinking" class="amount">₹500</span>
+                                </div>
+                                <div class="preview-item">
+                                    <span>Occupancy Charges:</span>
+                                    <span id="previewOccupancy" class="amount">₹50</span>
+                                </div>
+                                <div class="preview-item">
+                                    <span>Festival Charges:</span>
+                                    <span id="previewFestival" class="amount">₹100</span>
+                                </div>
+                                <div class="preview-item">
+                                    <span>Building Maintenance:</span>
+                                    <span id="previewBuilding" class="amount">₹400</span>
+                                </div>
+                                <div class="preview-item">
+                                    <span>NOC Charges:</span>
+                                    <span id="previewNOC" class="amount">₹0</span>
+                                </div>
+                                <div class="preview-total">
+                                    <span><strong>Total Amount:</strong></span>
+                                    <span id="previewTotal" class="total-amount"><strong>₹6,050</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="config-status">
+                            <h5><i class="fas fa-info-circle"></i> Configuration Status</h5>
+                            <div id="configStatus" class="status-info">
+                                <p>Configuration not saved yet. Click "Save Configuration" to apply these amounts to bill generation.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Maintenance Bill Payment Section -->
+            <section id="paymentsSection" class="content-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-credit-card"></i> Maintenance Bill Payment</h2>
+                    <div class="section-actions">
+                        <button id="recordPaymentBtn" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Record Payment
+                        </button>
+                        <button id="addOtherIncomeBtn" class="btn btn-success">
+                            <i class="fas fa-coins"></i> Add Other Income
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table id="paymentsTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Receipt No.</th>
+                                <th>Flat No.</th>
+                                <th>Member Name</th>
+                                <th>Amount</th>
+                                <th>Payment Mode</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Payments data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Expense Management Section -->
+            <section id="expensesSection" class="content-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-money-bill-wave"></i> Expense Management</h2>
+                    <button id="addExpenseBtn" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Add Expense
+                    </button>
+                </div>
+
+                <div class="expense-summary">
+                    <div class="summary-card">
+                        <h3>This Month</h3>
+                        <p id="monthlyExpense">₹0</p>
+                    </div>
+                    <div class="summary-card">
+                        <h3>This Year</h3>
+                        <p id="yearlyExpense">₹0</p>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table id="expensesTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                                <th>Amount</th>
+                                <th>Payment Mode</th>
+                                <th>Bank Account</th>
+                                <th>Receipt</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Expenses data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Bank Management Section -->
+            <section id="banksSection" class="content-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-university"></i> Bank Management</h2>
+                    <div class="header-actions">
+                        <button id="addBankBtn" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Add Bank
+                        </button>
+                        <button id="addBankPaymentBtn" class="btn btn-success">
+                            <i class="fas fa-rupee-sign"></i> Record Bank Payment
+                        </button>
+                        <button id="fixBankOpeningBalanceBtn" class="btn btn-warning" onclick="fixBankOpeningBalances()" title="Fix banks with missing opening balance transactions">
+                            <i class="fas fa-wrench"></i> Fix Opening Balances
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bank-summary">
+                    <div class="summary-card">
+                        <h3>Total Banks</h3>
+                        <p id="totalBanks">0</p>
+                    </div>
+                    <div class="summary-card">
+                        <h3>This Month Payments</h3>
+                        <p id="monthlyBankPayments">₹0</p>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Total Balance</h3>
+                        <p id="totalBankBalance">₹0</p>
+                    </div>
+                </div>
+
+                <div class="banks-grid">
+                    <div class="bank-cards-container" id="bankCardsContainer">
+                        <!-- Bank cards will be populated here -->
+                    </div>
+                </div>
+
+                <div class="section-header" style="margin-top: 30px;">
+                    <h3><i class="fas fa-history"></i> Recent Bank Transactions</h3>
+                </div>
+
+                <div class="table-container">
+                    <table id="bankPaymentsTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Bank</th>
+                                <th>Transaction Type</th>
+                                <th>Amount</th>
+                                <th>Description</th>
+                                <th>Reference</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Bank payments data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Notice Board Section -->
+            <section id="noticesSection" class="content-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-bullhorn"></i> Notice Board</h2>
+                    <button id="addNoticeBtn" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Add Notice
+                    </button>
+                </div>
+
+                <div id="noticesContainer" class="notices-container">
+                    <!-- Notices will be populated here -->
+                </div>
+            </section>
+
+            <!-- Complaints Section -->
+            <section id="complaintsSection" class="content-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-exclamation-triangle"></i> Complaints & Maintenance Requests</h2>
+                    <button id="addComplaintBtn" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Register Complaint
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <table id="complaintsTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Flat No.</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Complaints data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Meetings & Events Section -->
+            <section id="meetingsSection" class="content-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-calendar-alt"></i> Meetings & Events</h2>
+                    <button id="scheduleMeetingBtn" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Schedule Meeting
+                    </button>
+                </div>
+
+                <div class="meetings-calendar">
+                    <div id="upcomingMeetings" class="meetings-list">
+                        <!-- Meetings will be populated here -->
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- Reports Section -->
+            <section id="reportsSection" class="content-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-chart-bar"></i> Reports & Export</h2>
+                    <div class="header-actions">
+                        <select id="reportPeriod" class="form-control">
+                            <option value="current-month">Current Month</option>
+                            <option value="last-month">Last Month</option>
+                            <option value="current-year">Current Year</option>
+                            <option value="last-year">Last Year</option>
+                            <option value="custom">Custom Period</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="reports-grid">
+                    <div class="report-card" data-report="collection">
+                        <i class="fas fa-rupee-sign"></i>
+                        <h3>Collection Report</h3>
+                        <p>Maintenance collection summary with bank details</p>
+                        <div class="report-actions">
+                            <button class="btn btn-primary" onclick="generateCollectionReport()">
+                                <i class="fas fa-chart-line"></i> Generate
+                            </button>
+                            <button class="btn btn-success" onclick="exportCollectionReport('pdf')">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="report-card" data-report="dues">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <h3>Outstanding Dues</h3>
+                        <p>Pending payments and arrears by flat</p>
+                        <div class="report-actions">
+                            <button class="btn btn-primary" onclick="generateDuesReport()">
+                                <i class="fas fa-list"></i> Generate
+                            </button>
+                            <button class="btn btn-success" onclick="exportDuesReport('pdf')">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="report-card" data-report="expenses">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <h3>Expense Report</h3>
+                        <p>Category-wise expense analysis with bank payments</p>
+                        <div class="report-actions">
+                            <button class="btn btn-primary" onclick="generateExpenseReport()">
+                                <i class="fas fa-chart-pie"></i> Generate
+                            </button>
+                            <button class="btn btn-success" onclick="exportExpenseReport('pdf')">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="report-card" data-report="bank">
+                        <i class="fas fa-university"></i>
+                        <h3>Bank Reconciliation</h3>
+                        <p>Bank-wise transaction summary and balances</p>
+                        <div class="report-actions">
+                            <button class="btn btn-primary" onclick="generateBankReport()">
+                                <i class="fas fa-balance-scale"></i> Generate
+                            </button>
+                            <button class="btn btn-success" onclick="exportBankReport('pdf')">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="report-card" data-report="financial">
+                        <i class="fas fa-calculator"></i>
+                        <h3>Financial Summary</h3>
+                        <p>Complete income vs expense analysis</p>
+                        <div class="report-actions">
+                            <button class="btn btn-primary" onclick="generateFinancialReport()">
+                                <i class="fas fa-chart-bar"></i> Generate
+                            </button>
+                            <button class="btn btn-success" onclick="exportFinancialReport('pdf')">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="report-card" data-report="audit">
+                        <i class="fas fa-clipboard-list"></i>
+                        <h3>Audit Trail</h3>
+                        <p>Complete transaction history for auditing</p>
+                        <div class="report-actions">
+                            <button class="btn btn-primary" onclick="generateAuditReport()">
+                                <i class="fas fa-clipboard-list"></i> Generate
+                            </button>
+                            <button class="btn btn-success" onclick="exportAuditReport('pdf')">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="report-card" data-report="balance">
+                        <i class="fas fa-balance-scale"></i>
+                        <h3>Balance Sheet</h3>
+                        <p>Assets, Liabilities and Society Equity statement</p>
+                        <div class="report-actions">
+                            <button class="btn btn-primary" onclick="generateBalanceSheetReport()">
+                                <i class="fas fa-balance-scale"></i> Generate
+                            </button>
+                            <button class="btn btn-success" onclick="exportBalanceSheetReport('pdf')">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                        </div>
+                    </div>
+                    
+                </div>
+
+
+                <!-- Reports will open in separate windows -->
+            </section>
+            <!-- Settings Section -->
+            <section id="settingsSection" class="content-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-cog"></i> Society Settings</h2>
+                    <div class="section-actions">
+                        <button id="saveSettingsBtn" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Settings
+                        </button>
+                    </div>
+                </div>
+
+                <div class="settings-container">
+                    <div class="settings-card">
+                        <h3><i class="fas fa-building"></i> Society Information</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="societyNameInput">Society Name</label>
+                                <input type="text" id="societyNameInput" placeholder="Enter society name">
+                            </div>
+                            <div class="form-group">
+                                <label for="societyAddressInput">Society Address</label>
+                                <textarea id="societyAddressInput" rows="3" placeholder="Enter complete address"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="registrationNumberInput">Registration Number</label>
+                                <input type="text" id="registrationNumberInput" placeholder="Enter registration number">
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="settings-info">
+                        <div class="info-box">
+                            <i class="fas fa-info-circle"></i>
+                            <div>
+                                <h4>Auto-Update Feature</h4>
+                                <p>Changes made here will automatically update in:</p>
+                                <ul>
+                                    <li>Maintenance Bills</li>
+                                    <li>Payment Receipts</li>
+                                    <li>All Reports</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals will be added here -->
+    <div id="modalContainer"></div>
+
+    <!-- Notification Container -->
+    <div id="notificationContainer" class="notification-container"></div>
+
+    <!-- Firebase Configuration -->
+    <script src="firebase-config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
