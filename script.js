@@ -2326,10 +2326,23 @@ function saveBillConfiguration(e) {
     localStorage.setItem('billConfiguration', JSON.stringify(config));
     
     // Save to Firebase (if available)
-    if (typeof FirebaseHelper !== 'undefined') {
-        FirebaseHelper.saveBillConfiguration(config).catch(error => {
-            console.log('Firebase save failed, using localStorage only');
-        });
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            const user = firebase.auth().currentUser;
+            if (user) {
+                firebase.database().ref('billConfiguration').set(config)
+                    .then(() => {
+                        console.log('✅ Bill Configuration saved to Firebase');
+                    })
+                    .catch(error => {
+                        console.log('Firebase save failed, using localStorage only:', error);
+                    });
+            } else {
+                console.log('User not authenticated, saving to localStorage only');
+            }
+        } catch (error) {
+            console.log('Firebase save failed, using localStorage only:', error);
+        }
     }
     
     updateConfigStatus();
@@ -4337,7 +4350,7 @@ async function handleAddBank(e) {
     e.preventDefault();
     
     // Wait a moment to ensure form is fully rendered
-    setTimeout(() => {
+    setTimeout(async () => {
         // Get form values with better error handling
         const bankNameEl = document.getElementById('addBankName');
         const branchEl = document.getElementById('addBankBranch');
@@ -4412,11 +4425,11 @@ async function handleAddBank(e) {
         }
         
         // Continue with bank creation
-        processAddBank(bankName, branch, accountNumber, ifscCode, accountType, initialBalance, description);
+        await processAddBank(bankName, branch, accountNumber, ifscCode, accountType, initialBalance, description);
     }, 100);
 }
 
-function processAddBank(bankName, branch, accountNumber, ifscCode, accountType, initialBalance, description) {
+async function processAddBank(bankName, branch, accountNumber, ifscCode, accountType, initialBalance, description) {
     const parsedInitialBalance = parseFloat(initialBalance) || 0;
     
     const bankData = {
@@ -4431,13 +4444,13 @@ function processAddBank(bankName, branch, accountNumber, ifscCode, accountType, 
         createdDate: new Date().toISOString()
     };
     
-    console.log('Adding bank with data:', bankData); // Debug log
-    
-    const banks = getBanksData();
-    console.log('Existing banks before adding:', banks);
+    const banks = await getBanksData();
+    const banksArray = Array.isArray(banks) ? banks : [];
+    console.log('Existing banks before adding:', banksArray);
     
     // Check if account number already exists
-    if (banks.find(bank => bank.accountNumber === bankData.accountNumber)) {
+    const existingBank = banksArray.find(bank => bank.accountNumber === bankData.accountNumber);
+    if (existingBank) {
         showNotification('Account number already exists!', 'error');
         return;
     }
@@ -4463,13 +4476,13 @@ function processAddBank(bankName, branch, accountNumber, ifscCode, accountType, 
         console.log('Added opening balance transaction:', openingTransaction);
     }
     
-    banks.push(bankData);
-    saveBanksData(banks);
+    banksArray.push(bankData);
+    saveBanksData(banksArray);
     
     // Save individual bank to Firebase immediately
     saveBankToFirebase(bankData);
     
-    console.log('Banks after adding:', banks); // Debug log
+    console.log('Banks after adding:', banksArray); // Debug log
     
     closeModal();
     loadBanksData();
