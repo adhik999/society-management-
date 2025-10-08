@@ -2735,7 +2735,11 @@ async function processImport() {
         return;
     }
     
-    const existingFlats = getFlatsData();
+    const existingFlats = await getFlatsData();
+    
+    // Ensure existingFlats is an array
+    const flatsArray = Array.isArray(existingFlats) ? existingFlats : [];
+    
     let importedCount = 0;
     const totalRecords = currentFileData.valid.length;
     
@@ -2749,7 +2753,7 @@ async function processImport() {
         const flatNumber = record['Flat Number'];
         
         // Check if flat already exists
-        const existingFlat = existingFlats.find(flat => flat.flatNumber === flatNumber);
+        const existingFlat = flatsArray.find(flat => flat.flatNumber === flatNumber);
         if (existingFlat) {
             console.log(`⚠️ Flat ${flatNumber} already exists, skipping...`);
             return;
@@ -3691,17 +3695,18 @@ function clearFlatHighlights() {
 // Try to auto-select flat based on search term
 async function tryAutoSelectFlat(searchTerm) {
     const flats = await getFlatsData();
+    const flatsArray = Array.isArray(flats) ? flats : [];
     const searchLower = searchTerm.toLowerCase().trim();
     
     // First try exact flat number match
-    let matchedFlat = flats.find(flat => 
-        flat.flatNumber.toLowerCase() === searchLower
+    let matchedFlat = flatsArray.find(flat => 
+        flat.flatNumber && flat.flatNumber.toLowerCase() === searchLower
     );
     
     // If no exact flat match, try exact member name match
     if (!matchedFlat) {
-        matchedFlat = flats.find(flat => 
-            flat.ownerName.toLowerCase() === searchLower
+        matchedFlat = flatsArray.find(flat => 
+            flat.ownerName && flat.ownerName.toLowerCase() === searchLower
         );
     }
     
@@ -3709,7 +3714,7 @@ async function tryAutoSelectFlat(searchTerm) {
     if (!matchedFlat) {
         const searchDigits = searchTerm.replace(/[^\d]/g, '');
         if (searchDigits.length >= 4) { // At least 4 digits
-            matchedFlat = flats.find(flat => 
+            matchedFlat = flatsArray.find(flat => 
                 flat.mobile && flat.mobile.replace(/[^\d]/g, '').includes(searchDigits)
             );
         }
@@ -3718,15 +3723,15 @@ async function tryAutoSelectFlat(searchTerm) {
     // If no mobile match, try partial matches
     if (!matchedFlat) {
         // Try partial flat number match
-        matchedFlat = flats.find(flat => 
-            flat.flatNumber.toLowerCase().includes(searchLower)
+        matchedFlat = flatsArray.find(flat => 
+            flat.flatNumber && flat.flatNumber.toLowerCase().includes(searchLower)
         );
     }
     
     // If still no match, try partial member name match
     if (!matchedFlat) {
-        matchedFlat = flats.find(flat => 
-            flat.ownerName.toLowerCase().includes(searchLower)
+        matchedFlat = flatsArray.find(flat => 
+            flat.ownerName && flat.ownerName.toLowerCase().includes(searchLower)
         );
     }
     
@@ -6032,15 +6037,16 @@ async function handleAddFlat(e) {
     };
     
     const flats = await getFlatsData();
+    const flatsArray = Array.isArray(flats) ? flats : [];
     
     // Check if flat number already exists
-    if (flats.find(flat => flat.flatNumber === flatData.flatNumber)) {
+    if (flatsArray.find(flat => flat.flatNumber === flatData.flatNumber)) {
         showNotification('Flat number already exists!', 'error');
         return;
     }
     
-    flats.push(flatData);
-    saveFlatsData(flats);
+    flatsArray.push(flatData);
+    saveFlatsData(flatsArray);
     
     // Save individual flat to Firebase immediately
     saveFlatToFirebase(flatData);
@@ -6439,7 +6445,8 @@ function calculateCumulativeOutstanding(flatNumber, bills, payments, currentPeri
 async function getMemberOutstandingAmounts(flatNumber) {
     // First check flat data for outstanding amount
     const flats = await getFlatsData();
-    const flat = flats.find(f => f.flatNumber === flatNumber);
+    const flatsArray = Array.isArray(flats) ? flats : [];
+    const flat = flatsArray.find(f => f.flatNumber === flatNumber);
     
     if (flat && flat.outstandingAmount && flat.outstandingAmount > 0) {
         return flat.outstandingAmount;
