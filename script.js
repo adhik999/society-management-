@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     try {
         // Load society info first
-        loadSocietyInfo();
+        await loadSocietyInfo();
         
         initializeEventListeners();
         
@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                         // Show success and redirect
                         showNotification(`Welcome ${currentUser.username}! 🎉`, 'success');
                         showMainApp();
-                        loadDashboardData();
+                        await loadDashboardData();
                         return;
                     }
                 } catch (error) {
@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 });
 
-function initializeApp() {
+async function initializeApp() {
     // Global error handler
     window.addEventListener('error', function(e) {
         console.error('JavaScript Error:', e.error || e.message);
@@ -77,7 +77,7 @@ function initializeApp() {
     });
     
     // Check if user is already logged in
-    checkExistingLogin();
+    await checkExistingLogin();
     
     console.log('Society Management System Loaded Successfully!');
 }
@@ -86,12 +86,12 @@ function loadSocietyInfo() {
     updateLoginPageSocietyName();
 }
 
-function checkExistingLogin() {
+async function checkExistingLogin() {
     const savedUser = localStorage.getItem('societyManager');
     if (savedUser) {
         currentUser = JSON.parse(savedUser);
         showMainApp();
-        loadDashboardData();
+        await loadDashboardData();
     } else {
         showLoginScreen();
     }
@@ -205,14 +205,14 @@ function initializeEventListeners() {
     // Navigation menu
     const navItems = document.querySelectorAll('.nav-item');
     navItems.forEach(item => {
-        item.addEventListener('click', function(e) {
+        item.addEventListener('click', async function(e) {
             try {
                 e.preventDefault();
                 const section = this.getAttribute('data-section');
                 
                 if (section) {
                     console.log('Switching to section:', section);
-                    switchSection(section);
+                    await switchSection(section);
                     
                     // Close mobile sidebar when nav item is clicked
                     if (window.innerWidth <= 768 && sidebar) {
@@ -354,9 +354,9 @@ async function handleGoogleLogin() {
                 
                 // Show success and redirect
                 showNotification(`Welcome ${currentUser.username}! 🎉`, 'success');
-                setTimeout(() => {
+                setTimeout(async () => {
                     showMainApp();
-                    loadDashboardData();
+                    await loadDashboardData();
                 }, 1000);
                 
                 return;
@@ -416,7 +416,7 @@ async function handleLogin(e) {
                 
                 localStorage.setItem('societyManager', JSON.stringify(currentUser));
                 showMainApp();
-                loadDashboardData();
+                await loadDashboardData();
                 showNotification(`🔥 Welcome ${currentUser.name}! Firebase login successful.`, 'success');
                 return;
                 
@@ -507,7 +507,7 @@ function logout() {
     showNotification('Logged out successfully!', 'success');
 }
 
-function switchSection(sectionName) {
+async function switchSection(sectionName) {
     console.log('Switching to section:', sectionName);
     try {
         // Update active nav item
@@ -532,7 +532,7 @@ function switchSection(sectionName) {
             currentSection = sectionName;
             
             // Load section-specific data
-            loadSectionData(sectionName);
+            await loadSectionData(sectionName);
         } else {
             console.error(`Section ${sectionName}Section not found`);
         }
@@ -558,10 +558,10 @@ function switchSettingsTab(tabName) {
 }
 
 // Data Loading Functions
-function loadSectionData(sectionName) {
+async function loadSectionData(sectionName) {
     switch(sectionName) {
         case 'dashboard':
-            loadDashboardData();
+            await loadDashboardData();
             break;
         case 'addFlatBtn':
             showAddFlatModal();
@@ -571,11 +571,11 @@ function loadSectionData(sectionName) {
             break;
         case 'flats':
             console.log('Loading flats section data...');
-            loadFlatsData();
+            await loadFlatsData();
             break;
         case 'billing':
             console.log('Loading billing section data...');
-            loadBillingData();
+            await loadBillingData();
             // Re-attach event listeners for billing section
             setTimeout(() => {
                 console.log('Re-attaching billing section event listeners...');
@@ -586,13 +586,13 @@ function loadSectionData(sectionName) {
             loadBillConfigData();
             break;
         case 'payments':
-            loadPaymentsData();
+            await loadPaymentsData();
             break;
         case 'expenses':
-            loadExpensesData();
+            await loadExpensesData();
             break;
         case 'banks':
-            loadBanksData();
+            await loadBanksData();
             break;
         case 'reports':
             loadReportsData();
@@ -612,13 +612,13 @@ function loadSectionData(sectionName) {
     }
 }
 
-function loadDashboardData() {
-    // Load dashboard statistics
-    const flats = getFlatsData();
-    const payments = getPaymentsData();
-    const expenses = getExpensesData();
-    const bills = getBillsData();
-    const banks = getBanksData();
+async function loadDashboardData() {
+    // Load dashboard statistics from Firebase
+    const flats = await getFlatsData();
+    const payments = await getPaymentsData();
+    const expenses = await getExpensesData();
+    const bills = await getBillsData();
+    const banks = await getBanksData();
 
     // Update dashboard cards
     document.getElementById('totalFlats').textContent = flats.length;
@@ -722,158 +722,350 @@ function refreshAllDataDisplays() {
 
 // Recent Activities and Monthly Summary functions removed as requested
 
-// Data Management Functions with Firebase Integration
-function getFlatsData() {
-    return JSON.parse(localStorage.getItem('societyFlats') || '[]');
+// Data Management Functions - Firebase Only
+async function getFlatsData() {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for Firebase data fetch');
+                return [];
+            }
+            
+            const snapshot = await firebase.database().ref('flats').once('value');
+            const flatsData = snapshot.val();
+            
+            if (flatsData) {
+                // Convert Firebase object to array
+                return Object.values(flatsData);
+            }
+            return [];
+            
+        } catch (error) {
+            console.error('Firebase flats fetch failed:', error);
+            return [];
+        }
+    }
+    return [];
 }
 
-function saveFlatsData(flats) {
-    // Save to localStorage (for offline support)
-    localStorage.setItem('societyFlats', JSON.stringify(flats));
-    
-    // Save to Firebase (if available)
-    if (typeof FirebaseHelper !== 'undefined') {
-        flats.forEach(flat => {
-            FirebaseHelper.saveFlat(flat).catch(error => {
-                console.log('Firebase save failed, using localStorage only');
+async function saveFlatsData(flats) {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for Firebase save');
+                return false;
+            }
+            
+            // Save each flat to Firebase
+            const promises = flats.map(flat => {
+                const flatId = `flat_${flat.flatNumber}`;
+                return firebase.database().ref(`flats/${flatId}`).set({
+                    ...flat,
+                    updatedAt: firebase.database.ServerValue.TIMESTAMP
+                });
             });
-        });
+            
+            await Promise.all(promises);
+            console.log(`✅ Saved ${flats.length} flats to Firebase`);
+            return true;
+            
+        } catch (error) {
+            console.error('Firebase flats save failed:', error);
+            return false;
+        }
     }
+    return false;
 }
 // Save individual flat to Firebase immediately
 async function saveFlatToFirebase(flatData) {
-    if (typeof FirebaseHelper !== 'undefined') {
+    if (typeof firebase !== 'undefined' && firebase.database) {
         try {
-            // Check if user is authenticated, if not, login automatically
-            if (!FirebaseHelper.getCurrentUser()) {
-                console.log('🔐 Auto-logging in for Firebase sync...');
-                const loginResult = await FirebaseHelper.loginUser('ghadageadhik99@gmail.com', 'ghadageadhik99');
-                if (!loginResult.success) {
-                    console.log('❌ Auto-login failed:', loginResult.error);
-                    showNotification('⚠️ Firebase login failed, saved locally only', 'warning');
-                    return;
-                }
-                console.log('✅ Auto-login successful for Firebase sync');
+            // Check if user is authenticated
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for Firebase sync');
+                showNotification('⚠️ Please login to sync with Firebase', 'warning');
+                return;
             }
             
-            const result = await FirebaseHelper.saveFlat(flatData);
-            if (result) {
-                console.log(`✅ Flat ${flatData.flatNumber} saved to Firebase`);
+            // Save flat to Firebase Realtime Database
+            const flatId = `flat_${flatData.flatNumber}`;
+            await firebase.database().ref(`flats/${flatId}`).set({
+                ...flatData,
+                createdAt: firebase.database.ServerValue.TIMESTAMP,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+            });
+            
+            console.log(`✅ Flat ${flatData.flatNumber} saved to Firebase`);
+            // Only show sync notification for manual operations, not bulk imports
+            if (!window.bulkImportInProgress) {
                 showNotification(`🔥 Flat ${flatData.flatNumber} synced to Firebase!`, 'success');
             }
+            
         } catch (error) {
-            console.log('Firebase flat save failed:', error);
-            showNotification('⚠️ Flat Firebase sync failed, saved locally only', 'warning');
+            console.error('Firebase flat save failed:', error);
+            showNotification('⚠️ Firebase sync failed, saved locally only', 'warning');
+        }
+    } else {
+        console.log('Firebase not available');
+    }
+}
+
+async function getPaymentsData() {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for payments fetch');
+                return [];
+            }
+            
+            const snapshot = await firebase.database().ref('payments').once('value');
+            const paymentsData = snapshot.val();
+            
+            if (paymentsData) {
+                // Convert nested Firebase structure to flat array
+                const payments = [];
+                Object.values(paymentsData).forEach(yearData => {
+                    Object.values(yearData).forEach(monthData => {
+                        Object.values(monthData).forEach(payment => {
+                            payments.push(payment);
+                        });
+                    });
+                });
+                return payments;
+            }
+            return [];
+            
+        } catch (error) {
+            console.error('Firebase payments fetch failed:', error);
+            return [];
         }
     }
+    return [];
 }
 
-function getPaymentsData() {
-    return JSON.parse(localStorage.getItem('societyPayments') || '[]');
-}
-
-function savePaymentsData(payments) {
-    // Save to localStorage (for offline support)
-    localStorage.setItem('societyPayments', JSON.stringify(payments));
-    
-    // Save to Firebase (if available)
-    if (typeof FirebaseHelper !== 'undefined') {
-        payments.forEach(payment => {
-            FirebaseHelper.savePayment(payment).catch(error => {
-                console.log('Firebase save failed, using localStorage only');
+async function savePaymentsData(payments) {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for payments save');
+                return false;
+            }
+            
+            // Save each payment to Firebase with organized structure
+            const promises = payments.map(payment => {
+                const paymentDate = new Date(payment.date);
+                const year = paymentDate.getFullYear().toString();
+                const month = (paymentDate.getMonth() + 1).toString().padStart(2, '0');
+                const paymentId = payment.receiptNumber ? `payment_${payment.receiptNumber}` : `payment_${Date.now()}`;
+                
+                return firebase.database().ref(`payments/${year}/${month}/${paymentId}`).set({
+                    ...payment,
+                    updatedAt: firebase.database.ServerValue.TIMESTAMP
+                });
             });
-        });
+            
+            await Promise.all(promises);
+            console.log(`✅ Saved ${payments.length} payments to Firebase`);
+            return true;
+            
+        } catch (error) {
+            console.error('Firebase payments save failed:', error);
+            return false;
+        }
     }
+    return false;
 }
 
 // Save individual payment to Firebase immediately
 async function savePaymentToFirebase(paymentData) {
-    if (typeof FirebaseHelper !== 'undefined') {
+    if (typeof firebase !== 'undefined' && firebase.database) {
         try {
-            // Auto-login if not authenticated
-            if (!FirebaseHelper.getCurrentUser()) {
-                console.log('🔐 Auto-logging in for Firebase sync...');
-                const loginResult = await FirebaseHelper.loginUser('ghadageadhik99@gmail.com', 'ghadageadhik99');
-                if (!loginResult.success) {
-                    console.log('❌ Auto-login failed:', loginResult.error);
-                    showNotification('⚠️ Firebase login failed, saved locally only', 'warning');
-                    return;
-                }
+            // Check if user is authenticated
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for payment sync');
+                return;
             }
             
-            const result = await FirebaseHelper.savePayment(paymentData);
-            if (result) {
-                console.log(`✅ Payment ${paymentData.id} saved to Firebase`);
-                showNotification(`🔥 Payment synced to Firebase!`, 'success');
-            }
+            // Save payment to Firebase Realtime Database
+            const paymentDate = new Date(paymentData.date);
+            const year = paymentDate.getFullYear().toString();
+            const month = (paymentDate.getMonth() + 1).toString().padStart(2, '0');
+            const paymentId = paymentData.receiptNumber ? `payment_${paymentData.receiptNumber}` : `payment_${Date.now()}`;
+            
+            await firebase.database().ref(`payments/${year}/${month}/${paymentId}`).set({
+                ...paymentData,
+                createdAt: firebase.database.ServerValue.TIMESTAMP,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+            });
+            
+            console.log(`✅ Payment ${paymentData.receiptNumber} saved to Firebase`);
+            
         } catch (error) {
-            console.log('Firebase payment save failed:', error);
+            console.error('Firebase payment save failed:', error);
             showNotification('⚠️ Payment Firebase sync failed, saved locally only', 'warning');
         }
     }
 }
 
-function getExpensesData() {
-    return JSON.parse(localStorage.getItem('societyExpenses') || '[]');
+async function getExpensesData() {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for expenses fetch');
+                return [];
+            }
+            
+            const snapshot = await firebase.database().ref('expenses').once('value');
+            const expensesData = snapshot.val();
+            
+            if (expensesData) {
+                // Convert nested Firebase structure to flat array
+                const expenses = [];
+                Object.values(expensesData).forEach(yearData => {
+                    Object.values(yearData).forEach(monthData => {
+                        Object.values(monthData).forEach(expense => {
+                            expenses.push(expense);
+                        });
+                    });
+                });
+                return expenses;
+            }
+            return [];
+            
+        } catch (error) {
+            console.error('Firebase expenses fetch failed:', error);
+            return [];
+        }
+    }
+    return [];
 }
 
-function saveExpensesData(expenses) {
-    // Save to localStorage (for offline support)
-    localStorage.setItem('societyExpenses', JSON.stringify(expenses));
-    
-    // Save to Firebase (if available)
-    if (typeof FirebaseHelper !== 'undefined') {
-        expenses.forEach(expense => {
-            FirebaseHelper.saveExpense(expense).catch(error => {
-                console.log('Firebase save failed, using localStorage only');
+async function saveExpensesData(expenses) {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for expenses save');
+                return false;
+            }
+            
+            // Save each expense to Firebase with organized structure
+            const promises = expenses.map(expense => {
+                const expenseDate = new Date(expense.date);
+                const year = expenseDate.getFullYear().toString();
+                const month = (expenseDate.getMonth() + 1).toString().padStart(2, '0');
+                const expenseId = `expense_${expense.id}`;
+                
+                return firebase.database().ref(`expenses/${year}/${month}/${expenseId}`).set({
+                    ...expense,
+                    updatedAt: firebase.database.ServerValue.TIMESTAMP
+                });
             });
-        });
+            
+            await Promise.all(promises);
+            console.log(`✅ Saved ${expenses.length} expenses to Firebase`);
+            return true;
+            
+        } catch (error) {
+            console.error('Firebase expenses save failed:', error);
+            return false;
+        }
     }
+    return false;
 }
 
 // Save individual expense to Firebase immediately
 async function saveExpenseToFirebase(expenseData) {
-    if (typeof FirebaseHelper !== 'undefined') {
+    if (typeof firebase !== 'undefined' && firebase.database) {
         try {
-            // Auto-login if not authenticated
-            if (!FirebaseHelper.getCurrentUser()) {
-                console.log('🔐 Auto-logging in for Firebase sync...');
-                const loginResult = await FirebaseHelper.loginUser('ghadageadhik99@gmail.com', 'ghadageadhik99');
-                if (!loginResult.success) {
-                    console.log('❌ Auto-login failed:', loginResult.error);
-                    showNotification('⚠️ Firebase login failed, saved locally only', 'warning');
-                    return;
-                }
+            // Check if user is authenticated
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for expense sync');
+                return;
             }
             
-            const result = await FirebaseHelper.saveExpense(expenseData);
-            if (result) {
-                console.log(`✅ Expense ${expenseData.id} saved to Firebase`);
-                showNotification(`🔥 Expense synced to Firebase!`, 'success');
-            }
+            // Save expense to Firebase Realtime Database
+            const expenseDate = new Date(expenseData.date);
+            const year = expenseDate.getFullYear().toString();
+            const month = (expenseDate.getMonth() + 1).toString().padStart(2, '0');
+            const expenseId = `expense_${expenseData.id}`;
+            
+            await firebase.database().ref(`expenses/${year}/${month}/${expenseId}`).set({
+                ...expenseData,
+                createdAt: firebase.database.ServerValue.TIMESTAMP,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+            });
+            
+            console.log(`✅ Expense ${expenseData.id} saved to Firebase`);
+            
         } catch (error) {
-            console.log('Firebase expense save failed:', error);
-            showNotification('⚠️ Expense Firebase sync failed, saved locally only', 'warning');
+            console.error('Firebase expense save failed:', error);
         }
     }
 }
 
-function getBanksData() {
-    return JSON.parse(localStorage.getItem('societyBanks') || '[]');
+async function getBanksData() {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for banks fetch');
+                return [];
+            }
+            
+            const snapshot = await firebase.database().ref('banks').once('value');
+            const banksData = snapshot.val();
+            
+            if (banksData) {
+                // Convert Firebase object to array
+                return Object.values(banksData);
+            }
+            return [];
+            
+        } catch (error) {
+            console.error('Firebase banks fetch failed:', error);
+            return [];
+        }
+    }
+    return [];
 }
 
-function saveBanksData(banks) {
-    // Save to localStorage (for offline support)
-    localStorage.setItem('societyBanks', JSON.stringify(banks));
-    
-    // Save to Firebase (if available)
-    if (typeof FirebaseHelper !== 'undefined') {
-        banks.forEach(bank => {
-            FirebaseHelper.saveBank(bank).catch(error => {
-                console.log('Firebase save failed, using localStorage only');
+async function saveBanksData(banks) {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for banks save');
+                return false;
+            }
+            
+            // Save each bank to Firebase
+            const promises = banks.map(bank => {
+                const bankId = `bank_${bank.id || Date.now()}`;
+                return firebase.database().ref(`banks/${bankId}`).set({
+                    ...bank,
+                    updatedAt: firebase.database.ServerValue.TIMESTAMP
+                });
             });
-        });
+            
+            await Promise.all(promises);
+            console.log(`✅ Saved ${banks.length} banks to Firebase`);
+            return true;
+            
+        } catch (error) {
+            console.error('Firebase banks save failed:', error);
+            return false;
+        }
     }
+    return false;
 }
 
 // Save individual bank to Firebase immediately
@@ -1016,62 +1208,98 @@ function cleanDuplicateBankPayments() {
 
 // Complaints data functions removed - complaints section deleted
 
-function getBillsData() {
-    return JSON.parse(localStorage.getItem('societyBills') || '[]');
-}
-
-function saveBillsData(bills) {
-    // Save to localStorage (for offline support)
-    localStorage.setItem('societyBills', JSON.stringify(bills));
-    
-    // Save to Firebase (if available and authenticated)
-    if (typeof FirebaseHelper !== 'undefined' && typeof auth !== 'undefined') {
-        // Check if user is authenticated before attempting Firebase operations
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-            bills.forEach(bill => {
-                FirebaseHelper.saveBill(bill).catch(error => {
-                    console.log('Firebase save failed, using localStorage only');
+async function getBillsData() {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for bills fetch');
+                return [];
+            }
+            
+            const snapshot = await firebase.database().ref('bills').once('value');
+            const billsData = snapshot.val();
+            
+            if (billsData) {
+                // Convert nested Firebase structure to flat array
+                const bills = [];
+                Object.values(billsData).forEach(yearData => {
+                    Object.values(yearData).forEach(monthData => {
+                        Object.values(monthData).forEach(bill => {
+                            bills.push(bill);
+                        });
+                    });
                 });
-            });
-        } else {
-            console.log('⚠️ Not authenticated - bills saved to localStorage only');
+                return bills;
+            }
+            return [];
+            
+        } catch (error) {
+            console.error('Firebase bills fetch failed:', error);
+            return [];
         }
     }
+    return [];
+}
+
+async function saveBillsData(bills) {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for bills save');
+                return false;
+            }
+            
+            // Save each bill to Firebase with organized structure
+            const promises = bills.map(bill => {
+                const [year, month] = bill.period.split('-');
+                const billId = `bill_${bill.flatNumber}_${bill.period}`;
+                
+                return firebase.database().ref(`bills/${year}/${month}/${billId}`).set({
+                    ...bill,
+                    updatedAt: firebase.database.ServerValue.TIMESTAMP
+                });
+            });
+            
+            await Promise.all(promises);
+            console.log(`✅ Saved ${bills.length} bills to Firebase`);
+            return true;
+            
+        } catch (error) {
+            console.error('Firebase bills save failed:', error);
+            return false;
+        }
+    }
+    return false;
 }
 
 // Save individual bill to Firebase immediately
 async function saveBillToFirebase(billData) {
-    // Check if Firebase sync is disabled due to authentication issues
-    const firebaseDisabled = localStorage.getItem('firebaseDisabled') === 'true';
-    
-    if (firebaseDisabled) {
-        console.log('📱 Firebase sync disabled - using localStorage only');
-        return false;
-    }
-    
-    if (typeof FirebaseHelper !== 'undefined' && typeof auth !== 'undefined') {
+    if (typeof firebase !== 'undefined' && firebase.database) {
         try {
-            // Check authentication status
-            const currentUser = auth.currentUser;
-            if (!currentUser) {
-                console.log('⚠️ Not authenticated for Firebase sync');
-                console.log('💡 Run: await createTestUser() to create new user');
-                console.log('🔑 Or run: await firebaseLogin("email", "password") to login');
-                showNotification('⚠️ Firebase not authenticated, saved locally only', 'warning');
+            // Check if user is authenticated
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for bill sync');
                 return false;
             }
             
-            const result = await FirebaseHelper.saveBill(billData);
-            if (result) {
-                console.log(`✅ Bill ${billData.billNumber} saved to Firebase`);
-                showNotification(`🔥 Bill ${billData.billNumber} synced to Firebase!`, 'success');
-                return true;
-            }
-            return false;
+            // Save bill to Firebase Realtime Database
+            const [year, month] = billData.period.split('-');
+            const billId = `bill_${billData.flatNumber}_${billData.period}`;
+            
+            await firebase.database().ref(`bills/${year}/${month}/${billId}`).set({
+                ...billData,
+                createdAt: firebase.database.ServerValue.TIMESTAMP,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+            });
+            
+            console.log(`✅ Bill ${billData.billNumber} saved to Firebase`);
+            return true;
+            
         } catch (error) {
-            console.log('Firebase bill save failed:', error);
-            showNotification('⚠️ Bill Firebase sync failed, saved locally only', 'warning');
+            console.error('Firebase bill save failed:', error);
             return false;
         }
     }
@@ -1079,7 +1307,7 @@ async function saveBillToFirebase(billData) {
 }
 
 // Society Info Functions
-function loadSocietyInfo() {
+async function loadSocietyInfo() {
     const societyInfo = JSON.parse(localStorage.getItem('societyInfo') || '{}');
     
     // Set default values if not exists
@@ -1116,13 +1344,13 @@ function loadSocietyInfo() {
     window.societyInfo = societyInfo;
     
     // Refresh dashboard data to reflect changes
-    loadDashboardData();
+    await loadDashboardData();
     
     // Refresh current section if it's bills or payments (they use society info)
     const activeSection = document.querySelector('.nav-item.active')?.dataset?.section;
     if (activeSection === 'billing' || activeSection === 'payments') {
-        setTimeout(() => {
-            loadSectionData(activeSection);
+        setTimeout(async () => {
+            await loadSectionData(activeSection);
         }, 100);
     }
     
@@ -1167,7 +1395,7 @@ function loadSettingsData() {
 }
 
 // Save Settings Data
-function saveSettingsData() {
+async function saveSettingsData() {
     console.log('Saving settings data...');
     
     const societyInfo = {
@@ -1211,7 +1439,7 @@ function saveSettingsData() {
     // Force refresh all sections that use society info
     const currentSection = document.querySelector('.nav-item.active')?.dataset?.section;
     if (currentSection) {
-        loadSectionData(currentSection);
+        await loadSectionData(currentSection);
     }
     
     showNotification('Settings saved successfully! All bills and receipts will now use the updated information.', 'success');
@@ -1246,8 +1474,8 @@ function initializeBillingYear() {
 }
 
 // Data Loading Functions
-function loadFlatsData() {
-    const flats = getFlatsData();
+async function loadFlatsData() {
+    const flats = await getFlatsData();
     const tbody = document.querySelector('#flatsTable tbody');
     
     if (tbody) {
@@ -1295,9 +1523,9 @@ function loadFlatsData() {
     }
 }
 
-function loadBillingData() {
-    const bills = JSON.parse(localStorage.getItem('societyBills') || '[]');
-    const payments = JSON.parse(localStorage.getItem('societyPayments') || '[]');
+async function loadBillingData() {
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     const tbody = document.querySelector('#billsTable tbody');
     
     if (!tbody) return;
@@ -1516,7 +1744,7 @@ function recordPaymentForBill(flatNumber, period, outstandingAmount) {
 }
 
 // Delete bill function
-function deleteBill(billId) {
+async function deleteBill(billId) {
     if (!confirm('Are you sure you want to delete this bill? This action cannot be undone!')) {
         return;
     }
@@ -1535,7 +1763,7 @@ function deleteBill(billId) {
     
     // Refresh billing table
     loadBillingData();
-    loadDashboardData();
+    await loadDashboardData();
     
     showNotification(`✅ Bill ${billToDelete.billNumber} successfully deleted!`, 'success');
 }
@@ -1708,9 +1936,9 @@ function recordPaymentForBill(billId) {
     }, 100);
 }
 
-function loadPaymentsData() {
-    const payments = getPaymentsData();
-    const banks = getBanksData();
+async function loadPaymentsData() {
+    const payments = await getPaymentsData();
+    const banks = await getBanksData();
     const tbody = document.querySelector('#paymentsTable tbody');
     
     if (tbody) {
@@ -1746,8 +1974,8 @@ function loadPaymentsData() {
     }
 }
 
-function loadExpensesData() {
-    const expenses = getExpensesData();
+async function loadExpensesData() {
+    const expenses = await getExpensesData();
     const tbody = document.querySelector('#expensesTable tbody');
     
     // Calculate monthly and yearly totals
@@ -1805,8 +2033,8 @@ function loadExpensesData() {
     }
 }
 
-function loadBanksData() {
-    const banks = getBanksData();
+async function loadBanksData() {
+    const banks = await getBanksData();
     const bankPayments = getBankPaymentsData();
     
     // Update summary cards
@@ -2457,6 +2685,9 @@ async function processImport() {
     let importedCount = 0;
     const totalRecords = currentFileData.valid.length;
     
+    // Set bulk import flag to prevent individual notifications
+    window.bulkImportInProgress = true;
+    
     // Show progress notification
     showNotification(`🔄 Importing ${totalRecords} members to Firebase...`, 'info');
     
@@ -2500,6 +2731,9 @@ async function processImport() {
     // Refresh display
     loadFlatsData();
     loadDashboardData();
+    
+    // Reset bulk import flag
+    window.bulkImportInProgress = false;
     
     // Close modal and show success
     closeModal();
@@ -4040,7 +4274,7 @@ function toggleBankField() {
     toggleExpensePaymentFields();
 }
 
-function handleAddBank(e) {
+async function handleAddBank(e) {
     e.preventDefault();
     
     // Wait a moment to ensure form is fully rendered
@@ -4183,7 +4417,7 @@ function processAddBank(bankName, branch, accountNumber, ifscCode, accountType, 
     showNotification(`Bank "${bankName}" added successfully!`, 'success');
 }
 
-function handleAddBankPayment(e) {
+async function handleAddBankPayment(e) {
     e.preventDefault();
     
     const paymentData = {
@@ -4217,6 +4451,7 @@ function handleAddBankPayment(e) {
     closeModal();
     refreshBankPaymentsTable();
     loadBanksData();
+    await loadDashboardData();
     showNotification(`Bank ${paymentData.type} recorded successfully!`, 'success');
 }
 
@@ -4261,7 +4496,7 @@ function addBankTransaction(bankId, type) {
     document.getElementById('quickBankTransactionForm').addEventListener('submit', handleQuickBankTransaction);
 }
 
-function handleQuickBankTransaction(e) {
+async function handleQuickBankTransaction(e) {
     e.preventDefault();
     
     const paymentData = {
@@ -4295,6 +4530,7 @@ function handleQuickBankTransaction(e) {
     closeModal();
     refreshBankPaymentsTable();
     loadBanksData();
+    await loadDashboardData();
     showNotification(`${paymentData.type === 'credit' ? 'Credit' : 'Debit'} added successfully!`, 'success');
 }
 
@@ -5724,7 +5960,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
 // Sample data initialization removed - start with clean system
 
-function handleAddFlat(e) {
+async function handleAddFlat(e) {
     e.preventDefault();
     
     const flatData = {
@@ -5760,11 +5996,11 @@ function handleAddFlat(e) {
     
     closeModal();
     loadFlatsData();
-    loadDashboardData();
+    await loadDashboardData();
     showNotification('Flat added successfully!', 'success');
 }
 
-function handleGenerateBills(e) {
+async function handleGenerateBills(e) {
     e.preventDefault();
     
     const selectedMonth = document.getElementById('billMonth').value;
@@ -5803,11 +6039,11 @@ function handleGenerateBills(e) {
         saveBillsData(updatedBills);
     }
     
-    generateMonthlyBillsWithConfig(selectedMonth, selectedYear, config);
+    await generateMonthlyBillsWithConfig(selectedMonth, selectedYear, config);
 }
 
 // Enhanced Bill Generation with Configuration
-function generateMonthlyBillsWithConfig(selectedMonth, selectedYear, config) {
+async function generateMonthlyBillsWithConfig(selectedMonth, selectedYear, config) {
     const period = `${selectedYear}-${selectedMonth.padStart(2, '0')}`;
     const flats = getFlatsData();
     const bills = getBillsData();
@@ -5950,7 +6186,7 @@ function generateMonthlyBillsWithConfig(selectedMonth, selectedYear, config) {
     
     // Refresh displays
     loadBillingData();
-    loadDashboardData();
+    await loadDashboardData();
     
     showNotification(`🎉 ${generatedCount} bills generated for ${getMonthName(selectedMonth)} ${selectedYear}!`, 'success');
 }
@@ -6682,10 +6918,10 @@ function cleanAllData() {
 }
 
 // Calculate outstanding amounts for all flats based on unpaid bills and payments
-function calculateOutstandingAmountsForAllFlats() {
-    const flats = getFlatsData();
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+async function calculateOutstandingAmounts() {
+    const bills = await getBillsData();
+    const flats = await getFlatsData();
+    const payments = await getPaymentsData();
     let updated = false;
     
     console.log('\n=== Calculating Outstanding Amounts ===');
@@ -8469,7 +8705,7 @@ function generateNovemberBills() {
     generateMonthlyBillsWithConfig('11', '2025', config);
 }
 
-function handleRecordPayment(e) {
+async function handleRecordPayment(e) {
     e.preventDefault();
     
     const flatNumber = document.getElementById('paymentFlatNumber').value;
@@ -8629,7 +8865,7 @@ function handleRecordPayment(e) {
     loadPaymentsData();
     loadFlatsData(); // Refresh flats to show updated outstanding amount
     loadBillingData(); // Refresh bills to show updated status
-    loadDashboardData();
+    await loadDashboardData();
     refreshAllDataDisplays(); // Additional refresh to ensure all tables are updated
     
     showNotification('Payment recorded successfully!', 'success');
@@ -10720,7 +10956,7 @@ function exportBalanceSheetReport(format) {
     generateBalanceSheetReport();
 }
 
-function handleAddExpense(e) {
+async function handleAddExpense(e) {
     e.preventDefault();
     
     const bankAccountId = document.getElementById('expenseBankAccount').value;
@@ -10761,7 +10997,7 @@ function handleAddExpense(e) {
     
     closeModal();
     loadExpensesData();
-    loadDashboardData();
+    await loadDashboardData();
     
     // Show success message with bank info if applicable
     const banks = getBanksData();
@@ -11040,7 +11276,7 @@ function showEditFlatModal(flat) {
     });
 }
 
-function handleEditFlat(e) {
+async function handleEditFlat(e) {
     e.preventDefault();
     
     const flatId = document.getElementById('editFlatId').value;
@@ -11081,11 +11317,11 @@ function handleEditFlat(e) {
     
     closeModal();
     loadFlatsData();
-    loadDashboardData();
+    await loadDashboardData();
     showNotification('Flat updated successfully!', 'success');
 }
 
-function deleteFlat(id) {
+async function deleteFlat(id) {
     const flats = getFlatsData();
     const flat = flats.find(f => f.id === id);
     
@@ -11100,7 +11336,7 @@ function deleteFlat(id) {
         const updatedFlats = flats.filter(f => f.id !== id);
         saveFlatsData(updatedFlats);
         loadFlatsData();
-        loadDashboardData();
+        await loadDashboardData();
         showNotification(`Flat ${flat.flatNumber} deleted successfully!`, 'success');
     }
 }
@@ -11269,7 +11505,7 @@ function editExpense(id) {
     document.getElementById('editExpenseForm').addEventListener('submit', handleEditExpense);
 }
 
-function handleEditExpense(e) {
+async function handleEditExpense(e) {
     e.preventDefault();
     
     const expenseId = document.getElementById('editExpenseId').value;
@@ -11306,7 +11542,7 @@ function handleEditExpense(e) {
     
     closeModal();
     loadExpensesData();
-    loadDashboardData();
+    await loadDashboardData();
     showNotification('Expense updated successfully!', 'success');
 }
 
@@ -11593,7 +11829,7 @@ function printExpenseReceipt(id) {
     receiptWindow.focus();
 }
 
-function deleteExpense(id) {
+async function deleteExpense(id) {
     if (confirm('Are you sure you want to delete this expense?')) {
         const expenses = getExpensesData();
         const expenseToDelete = expenses.find(expense => expense.id === id);
@@ -11645,7 +11881,7 @@ function deleteExpense(id) {
         loadExpensesData();
         
         // Update dashboard
-        loadDashboardData();
+        await loadDashboardData();
         
         showNotification('Expense and related transactions deleted successfully!', 'success');
     }
