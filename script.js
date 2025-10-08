@@ -733,7 +733,10 @@ async function getFlatsData() {
             const user = firebase.auth().currentUser;
             if (!user) {
                 console.log('❌ User not authenticated for Firebase data fetch');
-                return [];
+                const localFlats = localStorage.getItem('flats');
+                const result = localFlats ? JSON.parse(localFlats) : [];
+                console.log('📊 Returning localStorage flats:', Array.isArray(result), result.length);
+                return result;
             }
             
             const snapshot = await firebase.database().ref('flats').once('value');
@@ -2562,21 +2565,26 @@ function initializeImportFunctionality() {
 function parseFile(file) {
     const reader = new FileReader();
     
-    reader.onload = function(e) {
-        const content = e.target.result;
-        let data = [];
-        
-        if (file.name.toLowerCase().endsWith('.csv')) {
-            data = parseCSV(content);
-        } else {
-            showNotification('Excel files require additional library. Please use CSV format.', 'warning');
-            return;
-        }
-        
-        if (data.length > 0) {
-            validateAndPreviewData(data);
-        } else {
-            showNotification('No data found in file', 'error');
+    reader.onload = async function(e) {
+        try {
+            const content = e.target.result;
+            let data = [];
+            
+            if (file.name.toLowerCase().endsWith('.csv')) {
+                data = parseCSV(content);
+            } else {
+                showNotification('Excel files require additional library. Please use CSV format.', 'warning');
+                return;
+            }
+            
+            if (data.length > 0) {
+                await validateAndPreviewData(data);
+            } else {
+                showNotification('No data found in file', 'error');
+            }
+        } catch (error) {
+            console.error('Error parsing file:', error);
+            showNotification('Error parsing file: ' + error.message, 'error');
         }
     };
     
@@ -2606,10 +2614,16 @@ function parseCSV(content) {
 }
 
 // Validate and Preview Data
-function validateAndPreviewData(data) {
+async function validateAndPreviewData(data) {
     const requiredFields = ['Flat Number', 'Owner Name', 'Mobile'];
     const validRecords = [];
     const errors = [];
+    
+    // Get existing flats data once
+    const existingFlats = await getFlatsData();
+    
+    // Ensure existingFlats is an array
+    const flatsArray = Array.isArray(existingFlats) ? existingFlats : [];
     
     data.forEach((row, index) => {
         const rowErrors = [];
@@ -2627,8 +2641,7 @@ function validateAndPreviewData(data) {
         }
         
         // Validate flat number uniqueness
-        const existingFlats = getFlatsData();
-        if (row['Flat Number'] && existingFlats.some(f => f.flatNumber === row['Flat Number'])) {
+        if (row['Flat Number'] && flatsArray.some(f => f.flatNumber === row['Flat Number'])) {
             rowErrors.push('Flat number already exists');
         }
         
