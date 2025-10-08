@@ -830,10 +830,10 @@
     <!-- Notification Container -->
     <div id="notificationContainer" class="notification-container"></div>
 
-    <!-- Firebase Configuration -->
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth.js"></script>
+    <!-- Firebase Configuration (v8 SDK for browser compatibility) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     
     <script>
         // Firebase Configuration
@@ -853,7 +853,15 @@
         const database = firebase.database();
         const auth = firebase.auth();
         
-        console.log('🔥 Firebase initialized successfully!');
+        console.log('🔥 Firebase v8 initialized successfully!');
+        console.log('📊 Database ready:', !!database);
+        console.log('🔐 Auth ready:', !!auth);
+        
+        // Test connection
+        database.ref('.info/connected').on('value', (snapshot) => {
+            const connected = snapshot.val() === true;
+            console.log(connected ? '🟢 Firebase connected' : '🔴 Firebase disconnected');
+        });
     </script>
     
     <script src="script.js"></script>
