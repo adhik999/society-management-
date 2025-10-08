@@ -414,20 +414,34 @@ async function handleLogin(e) {
             }
         }
         
-        // Fallback to local authentication
-        if (username === 'ghadageadhik99@gmail.com' && password === 'ghadageadhik99') {
+        // Fallback to local authentication with Firebase user support
+        const localCredentials = [
+            { email: 'ghadageadhik99@gmail.com', password: 'ghadageadhik99', role: 'manager', name: 'Adhik Ghadage' },
+            { email: 'ghadageadhik99@gmail.com', password: 'admin123', role: 'manager', name: 'Adhik Ghadage' },
+            { email: 'admin@society.com', password: 'admin123', role: 'admin', name: 'Society Admin' },
+            { email: 'test@society.com', password: 'test123', role: 'manager', name: 'Test User' }
+        ];
+        
+        const localUser = localCredentials.find(cred => 
+            cred.email === username && cred.password === password
+        );
+        
+        if (localUser) {
             currentUser = {
-                username: username,
-                role: 'manager',
+                username: localUser.email,
+                email: localUser.email,
+                name: localUser.name,
+                role: localUser.role,
+                uid: '0jagIeJd2zMwzoeB2OSVgqOiU852', // Your Firebase UID
                 loginTime: new Date().toISOString()
             };
             
             localStorage.setItem('societyManager', JSON.stringify(currentUser));
             showMainApp();
             loadDashboardData();
-            showNotification('Login successful!', 'success');
+            showNotification(`✅ Welcome ${localUser.name}! (Local + Firebase UID)`, 'success');
         } else {
-            showNotification('Invalid email or password!', 'error');
+            showNotification('❌ Invalid email or password! Try: ghadageadhik99@gmail.com / admin123', 'error');
         }
         
     } catch (error) {
