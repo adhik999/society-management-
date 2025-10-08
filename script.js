@@ -390,58 +390,66 @@ async function handleLogin(e) {
     loginBtn.disabled = true;
     
     try {
-        // Try Firebase Authentication first
-        if (typeof FirebaseHelper !== 'undefined') {
-            const result = await FirebaseHelper.loginUser(username, password);
-            
-            if (result.success) {
-                // Get user data from Firebase
-                const userData = await FirebaseHelper.getUserData(result.user.uid);
+        // Firebase Authentication Only
+        if (typeof firebase !== 'undefined' && firebase.auth) {
+            try {
+                const userCredential = await firebase.auth().signInWithEmailAndPassword(username, password);
+                const user = userCredential.user;
+                
+                // Get additional user data from Firebase database
+                let userData = {};
+                try {
+                    const snapshot = await firebase.database().ref(`users/${user.uid}`).once('value');
+                    userData = snapshot.val() || {};
+                } catch (dbError) {
+                    console.log('User data not found in database, using default');
+                }
                 
                 currentUser = {
-                    uid: result.user.uid,
-                    email: result.user.email,
-                    username: userData?.name || result.user.email,
-                    role: userData?.role || 'manager',
+                    uid: user.uid,
+                    email: user.email,
+                    username: userData.name || user.email.split('@')[0],
+                    name: userData.name || 'Society Manager',
+                    role: userData.role || 'manager',
                     loginTime: new Date().toISOString()
                 };
                 
                 localStorage.setItem('societyManager', JSON.stringify(currentUser));
                 showMainApp();
                 loadDashboardData();
-                showNotification('🔥 Firebase Login successful!', 'success');
+                showNotification(`🔥 Welcome ${currentUser.name}! Firebase login successful.`, 'success');
                 return;
+                
+            } catch (firebaseError) {
+                console.error('Firebase Auth Error:', firebaseError);
+                
+                // Show specific error messages
+                let errorMessage = 'Login failed. ';
+                switch (firebaseError.code) {
+                    case 'auth/user-not-found':
+                        errorMessage += 'User not found in Firebase.';
+                        break;
+                    case 'auth/wrong-password':
+                        errorMessage += 'Incorrect password.';
+                        break;
+                    case 'auth/invalid-email':
+                        errorMessage += 'Invalid email format.';
+                        break;
+                    case 'auth/unauthorized-domain':
+                        errorMessage += 'Domain not authorized. Add adhik999.github.io to Firebase Console.';
+                        break;
+                    default:
+                        errorMessage += firebaseError.message;
+                }
+                
+                showNotification(`❌ ${errorMessage}`, 'error');
+                console.log('🔧 Firebase Setup Required:');
+                console.log('1. Add domain: adhik999.github.io to Firebase Console');
+                console.log('2. Enable Email/Password authentication');
+                console.log('3. Create user in Firebase Authentication');
             }
-        }
-        
-        // Fallback to local authentication with Firebase user support
-        const localCredentials = [
-            { email: 'ghadageadhik99@gmail.com', password: 'ghadageadhik99', role: 'manager', name: 'Adhik Ghadage' },
-            { email: 'ghadageadhik99@gmail.com', password: 'admin123', role: 'manager', name: 'Adhik Ghadage' },
-            { email: 'admin@society.com', password: 'admin123', role: 'admin', name: 'Society Admin' },
-            { email: 'test@society.com', password: 'test123', role: 'manager', name: 'Test User' }
-        ];
-        
-        const localUser = localCredentials.find(cred => 
-            cred.email === username && cred.password === password
-        );
-        
-        if (localUser) {
-            currentUser = {
-                username: localUser.email,
-                email: localUser.email,
-                name: localUser.name,
-                role: localUser.role,
-                uid: '0jagIeJd2zMwzoeB2OSVgqOiU852', // Your Firebase UID
-                loginTime: new Date().toISOString()
-            };
-            
-            localStorage.setItem('societyManager', JSON.stringify(currentUser));
-            showMainApp();
-            loadDashboardData();
-            showNotification(`✅ Welcome ${localUser.name}! (Local + Firebase UID)`, 'success');
         } else {
-            showNotification('❌ Invalid email or password! Try: ghadageadhik99@gmail.com / admin123', 'error');
+            showNotification('❌ Firebase not initialized. Please check your internet connection.', 'error');
         }
         
     } catch (error) {
