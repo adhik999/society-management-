@@ -885,10 +885,17 @@ async function savePaymentsData(payments) {
                 const paymentDate = new Date(payment.date);
                 const year = paymentDate.getFullYear().toString();
                 const month = (paymentDate.getMonth() + 1).toString().padStart(2, '0');
-                const paymentId = payment.receiptNumber ? `payment_${payment.receiptNumber}` : `payment_${Date.now()}`;
+                
+                // Ensure receiptNumber is a string, not a Promise
+                let receiptNumber = payment.receiptNumber;
+                if (typeof receiptNumber === 'object' || receiptNumber === undefined) {
+                    receiptNumber = payment.id || Date.now().toString();
+                }
+                const paymentId = `payment_${receiptNumber}`;
                 
                 return firebase.database().ref(`payments/${year}/${month}/${paymentId}`).set({
                     ...payment,
+                    receiptNumber: receiptNumber, // Ensure it's saved as string
                     updatedAt: firebase.database.ServerValue.TIMESTAMP
                 });
             });
@@ -920,10 +927,17 @@ async function savePaymentToFirebase(paymentData) {
             const paymentDate = new Date(paymentData.date);
             const year = paymentDate.getFullYear().toString();
             const month = (paymentDate.getMonth() + 1).toString().padStart(2, '0');
-            const paymentId = paymentData.receiptNumber ? `payment_${paymentData.receiptNumber}` : `payment_${Date.now()}`;
+            
+            // Ensure receiptNumber is a string, not a Promise
+            let receiptNumber = paymentData.receiptNumber;
+            if (typeof receiptNumber === 'object' || receiptNumber === undefined) {
+                receiptNumber = paymentData.id || Date.now().toString();
+            }
+            const paymentId = `payment_${receiptNumber}`;
             
             await firebase.database().ref(`payments/${year}/${month}/${paymentId}`).set({
                 ...paymentData,
+                receiptNumber: receiptNumber, // Ensure it's saved as string
                 createdAt: firebase.database.ServerValue.TIMESTAMP,
                 updatedAt: firebase.database.ServerValue.TIMESTAMP
             });
@@ -8862,7 +8876,7 @@ async function handleRecordPayment(e) {
     
     const paymentData = {
         id: generateId(),
-        receiptNumber: generateReceiptNumber(paymentYear, paymentMonth),
+        receiptNumber: await generateReceiptNumber(paymentYear, paymentMonth),
         flatNumber: flatNumber,
         memberName: flat.ownerName,
         amount: amount,
@@ -8896,7 +8910,7 @@ async function handleRecordPayment(e) {
     
     // If a bank account was selected, automatically add credit to that bank
     if (bankAccountId) {
-        addMaintenancePaymentToBank(bankAccountId, amount, paymentDate, flatNumber, paymentData.receiptNumber);
+        await addMaintenancePaymentToBank(bankAccountId, amount, paymentDate, flatNumber, paymentData.receiptNumber);
     }
     
     // Handle initial outstanding amount payment
@@ -9183,8 +9197,9 @@ function getSelectedPaymentHeads() {
 }
 
 // Function to automatically add maintenance payment to bank account
-function addMaintenancePaymentToBank(bankId, amount, paymentDate, flatNumber, receiptNumber) {
-    const banks = getBanksData();
+async function addMaintenancePaymentToBank(bankId, amount, paymentDate, flatNumber, receiptNumber) {
+    const banks = await getBanksData();
+    const banksArray = Array.isArray(banks) ? banks : [];
     const bankPayments = getBankPaymentsData();
     
     // Check for duplicate payment - avoid adding same receipt multiple times
@@ -9201,15 +9216,15 @@ function addMaintenancePaymentToBank(bankId, amount, paymentDate, flatNumber, re
     }
     
     // Find the bank
-    const bankIndex = banks.findIndex(bank => bank.id === bankId);
+    const bankIndex = banksArray.findIndex(bank => bank.id === bankId);
     if (bankIndex === -1) {
         console.error('Bank not found for maintenance payment');
         return;
     }
     
     // Update bank balance
-    banks[bankIndex].balance = (banks[bankIndex].balance || 0) + amount;
-    saveBanksData(banks);
+    banksArray[bankIndex].balance = (banksArray[bankIndex].balance || 0) + amount;
+    saveBanksData(banksArray);
     
     // Add bank payment record
     const bankPaymentData = {
