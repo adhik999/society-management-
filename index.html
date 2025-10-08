@@ -760,10 +760,24 @@
                         <h3>Balance Sheet</h3>
                         <p>Assets, Liabilities and Society Equity statement</p>
                         <div class="report-actions">
-                            <button class="btn btn-primary" onclick="generateBalanceSheetReport()">
+                            <button class="btn btn-primary" onclick="handleBalanceSheetReport()">
                                 <i class="fas fa-balance-scale"></i> Generate
                             </button>
-                            <button class="btn btn-success" onclick="exportBalanceSheetReport('pdf')">
+                            <button class="btn btn-success" onclick="handleBalanceSheetExport('pdf')">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="report-card" data-report="income-expenditure">
+                        <i class="fas fa-chart-line"></i>
+                        <h3>Income & Expenditure</h3>
+                        <p>Detailed income vs expenditure statement</p>
+                        <div class="report-actions">
+                            <button class="btn btn-primary" onclick="generateIncomeExpenditureReport()">
+                                <i class="fas fa-chart-line"></i> Generate
+                            </button>
+                            <button class="btn btn-success" onclick="exportIncomeExpenditureReport('pdf')">
                                 <i class="fas fa-file-pdf"></i> PDF
                             </button>
                         </div>

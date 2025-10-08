@@ -1183,9 +1183,9 @@ function debugBankPayments() {
 }
 
 // Function to clean duplicate bank payments
-function cleanDuplicateBankPayments() {
+async function cleanDuplicateBankPayments() {
     const bankPayments = getBankPaymentsData();
-    const banks = getBanksData();
+    const banks = await getBanksData();
     
     console.log('Before cleaning:', bankPayments.length, 'payments');
     
@@ -1232,7 +1232,7 @@ function cleanDuplicateBankPayments() {
     saveBanksData(banks);
     
     // Refresh the display
-    refreshBankPaymentsTable();
+    await refreshBankPaymentsTable();
     loadBanksData();
     
     showNotification(`Cleaned ${duplicatesRemoved} duplicate bank payments!`, 'success');
@@ -1298,8 +1298,11 @@ async function saveBillsData(bills) {
         try {
             const user = firebase.auth().currentUser;
             if (!user) {
-                console.log('❌ User not authenticated for bills save');
-                return false;
+                console.log('❌ User not authenticated for bills save, using localStorage');
+                // Fallback to localStorage when not authenticated
+                localStorage.setItem('bills', JSON.stringify(bills));
+                console.log(`✅ Saved ${bills.length} bills to localStorage`);
+                return true;
             }
             
             // Save each bill to Firebase with organized structure
@@ -1318,11 +1321,18 @@ async function saveBillsData(bills) {
             return true;
             
         } catch (error) {
-            console.error('Firebase bills save failed:', error);
-            return false;
+            console.error('Firebase bills save failed, using localStorage fallback:', error);
+            // Fallback to localStorage on Firebase error
+            localStorage.setItem('bills', JSON.stringify(bills));
+            console.log(`✅ Saved ${bills.length} bills to localStorage (fallback)`);
+            return true;
         }
     }
-    return false;
+    
+    // Fallback to localStorage when Firebase is not available
+    localStorage.setItem('bills', JSON.stringify(bills));
+    console.log(`✅ Saved ${bills.length} bills to localStorage (no Firebase)`);
+    return true;
 }
 
 // Save individual bill to Firebase immediately
@@ -2168,12 +2178,12 @@ async function loadBanksData() {
     }
     
     // Load bank payments table with fresh data
-    refreshBankPaymentsTable();
+    await refreshBankPaymentsTable();
 }
 
 // Separate function to refresh bank payments table
-function refreshBankPaymentsTable() {
-    const banks = getBanksData();
+async function refreshBankPaymentsTable() {
+    const banks = await getBanksData();
     const bankPayments = getBankPaymentsData(); // Get fresh data
     
     const tbody = document.querySelector('#bankPaymentsTable tbody');
@@ -3073,8 +3083,8 @@ function showAddBankModal() {
     }, 200);
 }
 
-function showAddBankPaymentModal() {
-    const banks = getBanksData();
+async function showAddBankPaymentModal() {
+    const banks = await getBanksData();
     
     if (banks.length === 0) {
         showNotification('Please add at least one bank first!', 'error');
@@ -3926,8 +3936,8 @@ function toggleChequeFields() {
 }
 
 // Show Add Other Income Modal
-function showAddOtherIncomeModal() {
-    const banks = getBanksData();
+async function showAddOtherIncomeModal() {
+    const banks = await getBanksData();
     
     const modal = createModal('Add Other Income', `
         <form id="addOtherIncomeForm">
@@ -4130,9 +4140,9 @@ function getIncomeSourceText(source) {
     return sourceMap[source] || source;
 }
 
-function showAddExpenseModal() {
+async function showAddExpenseModal() {
     // Get available banks for dropdown
-    const banks = getBanksData();
+    const banks = await getBanksData();
     const bankOptions = banks.map(bank => 
         `<option value="${bank.id}">${bank.bankName} - ${bank.accountNumber}</option>`
     ).join('');
@@ -4535,7 +4545,7 @@ async function handleAddBankPayment(e) {
     saveBankPaymentsData(bankPayments);
     
     closeModal();
-    refreshBankPaymentsTable();
+    await refreshBankPaymentsTable();
     loadBanksData();
     await loadDashboardData();
     showNotification(`Bank ${paymentData.type} recorded successfully!`, 'success');
@@ -4614,7 +4624,7 @@ async function handleQuickBankTransaction(e) {
     saveBankPaymentsData(bankPayments);
     
     closeModal();
-    refreshBankPaymentsTable();
+    await refreshBankPaymentsTable();
     loadBanksData();
     await loadDashboardData();
     showNotification(`${paymentData.type === 'credit' ? 'Credit' : 'Debit'} added successfully!`, 'success');
@@ -5774,7 +5784,7 @@ function getA5TransferReceiptCSS() {
     `;
 }
 
-function deleteBankPayment(id) {
+async function deleteBankPayment(id) {
     const bankPayments = getBankPaymentsData();
     const payment = bankPayments.find(p => p.id === id);
     
@@ -5808,7 +5818,7 @@ function deleteBankPayment(id) {
         saveBankPaymentsData(updatedPayments);
         
         // Refresh the table immediately
-        refreshBankPaymentsTable();
+        await refreshBankPaymentsTable();
         
         // Reload the data
         loadBanksData();
@@ -5958,8 +5968,8 @@ async function generateReceiptNumber(year, month) {
 }
 
 // Generate sequential expense receipt number
-function generateExpenseReceiptNumber(year, month) {
-    const expenses = getExpensesData();
+async function generateExpenseReceiptNumber(year, month) {
+    const expenses = await getExpensesData();
     const yearMonth = `${year}-${month.toString().padStart(2, '0')}`;
     
     // Find all expense receipts for this year-month
@@ -9246,8 +9256,8 @@ async function addMaintenancePaymentToBank(bankId, amount, paymentDate, flatNumb
 }
 
 // Function to add expense transaction to bank account
-function addExpenseToBank(bankId, amount, expenseDate, category, vendor, expenseId) {
-    const banks = getBanksData();
+async function addExpenseToBank(bankId, amount, expenseDate, category, vendor, expenseId) {
+    const banks = await getBanksData();
     const bankPayments = getBankPaymentsData();
     
     // Check for duplicate expense - avoid adding same expense multiple times
@@ -9302,7 +9312,7 @@ function addExpenseToBank(bankId, amount, expenseDate, category, vendor, expense
     saveBankPaymentsData(bankPayments);
     
     // Refresh bank data display
-    refreshBankPaymentsTable();
+    await refreshBankPaymentsTable();
     
     console.log(`Added ₹${amount} debit to bank ${banks[bankIndex].bankName} for ${category} expense`);
 }
@@ -9349,7 +9359,7 @@ async function generateCollectionReport() {
     try {
         const { startDate, endDate, period } = getReportPeriod();
         const payments = await getPaymentsData();
-        const banks = getBanksData();
+        const banks = await getBanksData();
         
         console.log('Report data:', { payments: payments.length, banks: banks.length });
     
@@ -9833,9 +9843,9 @@ async function generateDuesReport() {
     showReport('Outstanding Dues Report', reportContent);
 }
 
-function generateExpenseReport() {
+async function generateExpenseReport() {
     const { startDate, endDate } = getReportPeriod();
-    const expenses = getExpensesData();
+    const expenses = await getExpensesData();
     const bankPayments = getBankPaymentsData();
     
     // Filter expenses by date range
@@ -9928,8 +9938,8 @@ function generateExpenseReport() {
     showReport('Expense Report', reportContent);
 }
 
-function generateBankReport() {
-    const banks = getBanksData();
+async function generateBankReport() {
+    const banks = await getBanksData();
     const bankPayments = getBankPaymentsData();
     const { startDate, endDate } = getReportPeriod();
     
@@ -10047,11 +10057,11 @@ function generateBankReport() {
 
 async function generateFinancialReport() {
     // First, clean up any bank payments that should be marked as expense transactions
-    cleanupBankExpenseTransactions();
+    await cleanupBankExpenseTransactions();
     
     const { startDate, endDate } = getReportPeriod();
     const payments = await getPaymentsData();
-    const expenses = getExpensesData();
+    const expenses = await getExpensesData();
     const bankPayments = getBankPaymentsData();
     
     // Filter by date range
@@ -10247,9 +10257,9 @@ function getCategoryDisplayName(category) {
 }
 
 // Function to clean up bank payments that should be marked as expense transactions
-function cleanupBankExpenseTransactions() {
+async function cleanupBankExpenseTransactions() {
     const bankPayments = getBankPaymentsData();
-    const expenses = getExpensesData();
+    const expenses = await getExpensesData();
     let updated = false;
     
     // Check each bank payment to see if it should be marked as expense transaction
@@ -10290,9 +10300,9 @@ function cleanupBankExpenseTransactions() {
 async function generateBalanceSheetReport() {
     const { startDate, endDate } = getReportPeriod();
     const payments = await getPaymentsData();
-    const expenses = getExpensesData();
+    const expenses = await getExpensesData();
     const bankPayments = getBankPaymentsData();
-    const banks = getBanksData();
+    const banks = await getBanksData();
     const bills = await getBillsData();
     
     // Calculate Assets
@@ -10474,7 +10484,7 @@ async function generateAuditReport() {
     
     try {
         const payments = await getPaymentsData();
-        const expenses = getExpensesData();
+        const expenses = await getExpensesData();
         const bankPayments = getBankPaymentsData();
         const bills = await getBillsData();
         
@@ -10561,8 +10571,8 @@ async function generateBalanceSheetReport() {
     
     try {
         const payments = await getPaymentsData();
-        const expenses = getExpensesData();
-        const banks = getBanksData();
+        const expenses = await getExpensesData();
+        const banks = await getBanksData();
         const bankPayments = getBankPaymentsData();
         const bills = await getBillsData();
         const flats = await getFlatsData();
@@ -11037,12 +11047,216 @@ function exportFinancialReport(format) {
     generateFinancialReport();
 }
 
-function exportAuditReport(format) {
-    generateAuditReport();
+async function exportAuditReport(format) {
+    await generateAuditReport();
 }
 
-function exportBalanceSheetReport(format) {
-    generateBalanceSheetReport();
+async function exportBalanceSheetReport(format) {
+    await generateBalanceSheetReport();
+}
+
+// Handler functions to properly handle async calls from HTML onclick
+async function handleBalanceSheetReport() {
+    try {
+        await generateBalanceSheetReport();
+    } catch (error) {
+        console.error('Error generating balance sheet report:', error);
+        showNotification('Error generating balance sheet report', 'error');
+    }
+}
+
+async function handleBalanceSheetExport(format) {
+    try {
+        await exportBalanceSheetReport(format);
+    } catch (error) {
+        console.error('Error exporting balance sheet report:', error);
+        showNotification('Error exporting balance sheet report', 'error');
+    }
+}
+
+// Income & Expenditure Report
+async function generateIncomeExpenditureReport() {
+    const { startDate, endDate } = getReportPeriod();
+    const payments = await getPaymentsData();
+    const expenses = await getExpensesData();
+    const bankPayments = getBankPaymentsData();
+    
+    // Calculate Income
+    const maintenanceIncome = payments.reduce((sum, payment) => sum + payment.amount, 0);
+    const bankCredits = bankPayments.filter(p => p.type === 'credit' && !p.isExpenseTransaction).reduce((sum, p) => sum + p.amount, 0);
+    const totalIncome = maintenanceIncome + bankCredits;
+    
+    // Calculate Expenditure by category
+    const expensesByCategory = {};
+    expenses.forEach(expense => {
+        if (!expensesByCategory[expense.category]) {
+            expensesByCategory[expense.category] = 0;
+        }
+        expensesByCategory[expense.category] += expense.amount;
+    });
+    
+    // Add bank debits that are not linked to expenses
+    const bankDebits = bankPayments.filter(p => p.type === 'debit' && !p.isExpenseTransaction).reduce((sum, p) => sum + p.amount, 0);
+    if (bankDebits > 0) {
+        expensesByCategory['Bank Charges & Others'] = (expensesByCategory['Bank Charges & Others'] || 0) + bankDebits;
+    }
+    
+    const totalExpenditure = Object.values(expensesByCategory).reduce((sum, amount) => sum + amount, 0);
+    const netSurplus = totalIncome - totalExpenditure;
+    
+    const reportContent = `
+        <div class="report-summary">
+            <div class="report-summary-card">
+                <h4>Total Income</h4>
+                <div class="amount income">₹${totalIncome.toLocaleString()}</div>
+            </div>
+            <div class="report-summary-card">
+                <h4>Total Expenditure</h4>
+                <div class="amount expense">₹${totalExpenditure.toLocaleString()}</div>
+            </div>
+            <div class="report-summary-card ${netSurplus >= 0 ? 'surplus' : 'deficit'}">
+                <h4>${netSurplus >= 0 ? 'Net Surplus' : 'Net Deficit'}</h4>
+                <div class="amount">₹${Math.abs(netSurplus).toLocaleString()}</div>
+            </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px;">
+            <div>
+                <h4>INCOME</h4>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>Income Source</th>
+                            <th>Amount (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Maintenance Collections</td>
+                            <td>₹${maintenanceIncome.toLocaleString()}</td>
+                        </tr>
+                        ${bankCredits > 0 ? `
+                        <tr>
+                            <td>Bank Credits & Other Income</td>
+                            <td>₹${bankCredits.toLocaleString()}</td>
+                        </tr>
+                        ` : ''}
+                        <tr style="font-weight: bold; border-top: 2px solid #ddd;">
+                            <td><strong>TOTAL INCOME</strong></td>
+                            <td><strong>₹${totalIncome.toLocaleString()}</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div>
+                <h4>EXPENDITURE</h4>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>Expense Category</th>
+                            <th>Amount (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${Object.entries(expensesByCategory)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([category, amount]) => `
+                                <tr>
+                                    <td>${category}</td>
+                                    <td>₹${amount.toLocaleString()}</td>
+                                </tr>
+                            `).join('')}
+                        <tr style="font-weight: bold; border-top: 2px solid #ddd;">
+                            <td><strong>TOTAL EXPENDITURE</strong></td>
+                            <td><strong>₹${totalExpenditure.toLocaleString()}</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div style="margin-top: 30px;">
+            <h4>Monthly Breakdown</h4>
+            <table class="report-table">
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Income</th>
+                        <th>Expenditure</th>
+                        <th>Net</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${generateMonthlyBreakdown(payments, expenses, bankPayments, startDate, endDate)}
+                </tbody>
+            </table>
+        </div>
+        
+        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+            <p><small><strong>Note:</strong> This Income & Expenditure statement shows the financial performance for the selected period. 
+            Income includes maintenance collections and other receipts. 
+            Expenditure is categorized by expense type for better analysis.</small></p>
+        </div>
+    `;
+    
+    showReport('Income & Expenditure Report', reportContent);
+}
+
+function generateMonthlyBreakdown(payments, expenses, bankPayments, startDate, endDate) {
+    const monthlyData = {};
+    
+    // Process payments
+    payments.forEach(payment => {
+        const month = payment.date.substring(0, 7); // YYYY-MM
+        if (!monthlyData[month]) {
+            monthlyData[month] = { income: 0, expenditure: 0 };
+        }
+        monthlyData[month].income += payment.amount;
+    });
+    
+    // Process expenses
+    expenses.forEach(expense => {
+        const month = expense.date.substring(0, 7); // YYYY-MM
+        if (!monthlyData[month]) {
+            monthlyData[month] = { income: 0, expenditure: 0 };
+        }
+        monthlyData[month].expenditure += expense.amount;
+    });
+    
+    // Process bank payments
+    bankPayments.forEach(bp => {
+        if (!bp.isExpenseTransaction) {
+            const month = bp.date.substring(0, 7); // YYYY-MM
+            if (!monthlyData[month]) {
+                monthlyData[month] = { income: 0, expenditure: 0 };
+            }
+            if (bp.type === 'credit') {
+                monthlyData[month].income += bp.amount;
+            } else {
+                monthlyData[month].expenditure += bp.amount;
+            }
+        }
+    });
+    
+    return Object.entries(monthlyData)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([month, data]) => {
+            const net = data.income - data.expenditure;
+            const monthName = new Date(month + '-01').toLocaleDateString('en-IN', { year: 'numeric', month: 'long' });
+            return `
+                <tr>
+                    <td>${monthName}</td>
+                    <td>₹${data.income.toLocaleString()}</td>
+                    <td>₹${data.expenditure.toLocaleString()}</td>
+                    <td class="${net >= 0 ? 'text-success' : 'text-danger'}">₹${Math.abs(net).toLocaleString()}</td>
+                </tr>
+            `;
+        }).join('');
+}
+
+async function exportIncomeExpenditureReport(format) {
+    await generateIncomeExpenditureReport();
 }
 
 async function handleAddExpense(e) {
@@ -11067,12 +11281,12 @@ async function handleAddExpense(e) {
         billNumber: document.getElementById('expenseBillNumber').value,
         referenceNumber: document.getElementById('expenseReferenceNumber')?.value || null, // Store cheque/reference number
         bankAccountId: bankAccountId || null, // Store bank account ID
-        expenseReceiptNumber: generateExpenseReceiptNumber(expenseYear, expenseMonth), // Add sequential receipt number
+        expenseReceiptNumber: await generateExpenseReceiptNumber(expenseYear, expenseMonth), // Add sequential receipt number
         createdDate: new Date().toISOString()
     };
     
     // Add expense to expenses list
-    const expenses = getExpensesData();
+    const expenses = await getExpensesData();
     expenses.push(expenseData);
     saveExpensesData(expenses);
     
@@ -11081,7 +11295,7 @@ async function handleAddExpense(e) {
     
     // If bank account is selected, add debit transaction and update balance
     if (bankAccountId) {
-        addExpenseToBank(bankAccountId, amount, expenseData.date, expenseData.category, expenseData.vendor, expenseData.id);
+        await addExpenseToBank(bankAccountId, amount, expenseData.date, expenseData.category, expenseData.vendor, expenseData.id);
     }
     
     closeModal();
@@ -11089,7 +11303,7 @@ async function handleAddExpense(e) {
     await loadDashboardData();
     
     // Show success message with bank info if applicable
-    const banks = getBanksData();
+    const banks = await getBanksData();
     const selectedBank = banks.find(bank => bank.id === bankAccountId);
     const bankInfo = selectedBank ? ` (Paid from ${selectedBank.bankName})` : '';
     
@@ -11198,9 +11412,9 @@ function getPaymentModeText(mode) {
     return modes[mode] || mode;
 }
 
-function getBankNameFromId(bankId) {
+async function getBankNameFromId(bankId) {
     if (!bankId) return null;
-    const banks = getBanksData();
+    const banks = await getBanksData();
     const bank = banks.find(b => b.id === bankId);
     return bank ? bank.bankName : null;
 }
@@ -11430,8 +11644,8 @@ async function deleteFlat(id) {
     }
 }
 
-function viewBill(id) {
-    const bills = JSON.parse(localStorage.getItem('societyBills') || '[]');
+async function viewBill(id) {
+    const bills = await getBillsData();
     const bill = bills.find(b => b.id === id);
     
     if (!bill) {
@@ -11443,8 +11657,8 @@ function viewBill(id) {
     showBillViewModal(bill);
 }
 
-function printBill(id) {
-    const bills = JSON.parse(localStorage.getItem('societyBills') || '[]');
+async function printBill(id) {
+    const bills = await getBillsData();
     const bill = bills.find(b => b.id === id);
     
     if (!bill) {
@@ -11456,8 +11670,8 @@ function printBill(id) {
     showBillViewModal(bill);
 }
 
-function downloadBillPDF(id) {
-    const bills = JSON.parse(localStorage.getItem('societyBills') || '[]');
+async function downloadBillPDF(id) {
+    const bills = await getBillsData();
     const bill = bills.find(b => b.id === id);
     
     if (!bill) {
@@ -11478,7 +11692,7 @@ async function viewPaymentReceipt(id) {
         return;
     }
     
-    showPaymentReceiptModal(payment);
+    await showPaymentReceiptModal(payment);
 }
 
 async function printPaymentReceipt(id) {
@@ -11490,11 +11704,11 @@ async function printPaymentReceipt(id) {
         return;
     }
     
-    showPaymentReceiptModal(payment);
+    await showPaymentReceiptModal(payment);
 }
 
-function editExpense(id) {
-    const expenses = getExpensesData();
+async function editExpense(id) {
+    const expenses = await getExpensesData();
     const expense = expenses.find(e => e.id === id);
     
     if (!expense) {
@@ -11614,7 +11828,7 @@ async function handleEditExpense(e) {
     };
     
     // Get existing expenses and update the specific one
-    const expenses = getExpensesData();
+    const expenses = await getExpensesData();
     const expenseIndex = expenses.findIndex(expense => expense.id === expenseId);
     
     if (expenseIndex === -1) {
@@ -11635,8 +11849,8 @@ async function handleEditExpense(e) {
     showNotification('Expense updated successfully!', 'success');
 }
 
-function printExpenseReceipt(id) {
-    const expenses = getExpensesData();
+async function printExpenseReceipt(id) {
+    const expenses = await getExpensesData();
     const expense = expenses.find(e => e.id === id);
     
     if (!expense) {
@@ -11654,7 +11868,7 @@ function printExpenseReceipt(id) {
         const expenseDate = new Date(expense.date);
         const expenseYear = expenseDate.getFullYear();
         const expenseMonth = expenseDate.getMonth() + 1;
-        receiptNumber = generateExpenseReceiptNumber(expenseYear, expenseMonth);
+        receiptNumber = await generateExpenseReceiptNumber(expenseYear, expenseMonth);
     }
     const currentDate = new Date().toLocaleDateString('en-IN');
     const currentTime = new Date().toLocaleTimeString('en-IN');
@@ -11857,7 +12071,7 @@ function printExpenseReceipt(id) {
                                 <td><strong>${getReferenceLabel(expense.paymentMode)}:</strong></td>
                                 <td>${expense.referenceNumber || 'N/A'}</td>
                                 <td><strong>Bank:</strong></td>
-                                <td>${getBankNameFromId(expense.bankAccountId) || 'N/A'}</td>
+                                <td>${await getBankNameFromId(expense.bankAccountId) || 'N/A'}</td>
                             </tr>
                             ` : ''}
                         </table>
@@ -11920,7 +12134,7 @@ function printExpenseReceipt(id) {
 
 async function deleteExpense(id) {
     if (confirm('Are you sure you want to delete this expense?')) {
-        const expenses = getExpensesData();
+        const expenses = await getExpensesData();
         const expenseToDelete = expenses.find(expense => expense.id === id);
         
         if (!expenseToDelete) {
@@ -13060,7 +13274,7 @@ function showBillViewModal(bill) {
     billWindow.focus();
 }
 
-function showPaymentReceiptModal(payment) {
+async function showPaymentReceiptModal(payment) {
     // Get society information from settings
     const societyInfo = JSON.parse(localStorage.getItem('societyInfo') || '{}');
     if (!societyInfo.name) {
@@ -13138,7 +13352,7 @@ function showPaymentReceiptModal(payment) {
                                 <td><strong>${getReferenceLabel(payment.mode)}:</strong></td>
                                 <td>${payment.reference || payment.chequeNumber || payment.referenceNumber || 'N/A'}</td>
                                 <td><strong>Bank:</strong></td>
-                                <td>${payment.bankName || getBankNameFromId(payment.bankAccountId) || 'N/A'}</td>
+                                <td>${payment.bankName || await getBankNameFromId(payment.bankAccountId) || 'N/A'}</td>
                             </tr>
                             ${payment.mode === 'cheque' && payment.chequeDate ? `
                             <tr>
@@ -15613,13 +15827,13 @@ async function restoreDeletedItem(deletedItemId) {
                 break;
                 
             case 'expense':
-                const expenses = getExpensesData();
+                const expenses = await getExpensesData();
                 expenses.push(originalData);
                 saveExpensesData(expenses);
                 
                 // Restore bank transaction if expense was paid from bank
                 if (originalData.bankAccountId) {
-                    addExpenseToBank(originalData.bankAccountId, originalData.amount, 
+                    await addExpenseToBank(originalData.bankAccountId, originalData.amount, 
                         originalData.date, originalData.category, originalData.vendor, originalData.id);
                 }
                 loadExpensesData();
