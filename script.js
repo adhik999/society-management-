@@ -356,7 +356,11 @@ async function handleGoogleLogin() {
                 showNotification(`Welcome ${currentUser.username}! 🎉`, 'success');
                 setTimeout(async () => {
                     showMainApp();
-                    await loadDashboardData();
+                    try {
+                        await loadDashboardData();
+                    } catch (error) {
+                        console.error('Error loading dashboard data:', error);
+                    }
                 }, 1000);
                 
                 return;
@@ -743,10 +747,14 @@ async function getFlatsData() {
             
         } catch (error) {
             console.error('Firebase flats fetch failed:', error);
-            return [];
+            // Fallback to localStorage
+            const localFlats = localStorage.getItem('flats');
+            return localFlats ? JSON.parse(localFlats) : [];
         }
     }
-    return [];
+    // Fallback to localStorage when Firebase is not available
+    const localFlats = localStorage.getItem('flats');
+    return localFlats ? JSON.parse(localFlats) : [];
 }
 
 async function saveFlatsData(flats) {
@@ -819,7 +827,10 @@ async function getPaymentsData() {
             const user = firebase.auth().currentUser;
             if (!user) {
                 console.log('❌ User not authenticated for payments fetch');
-                return [];
+                const localPayments = localStorage.getItem('payments');
+                const result = localPayments ? JSON.parse(localPayments) : [];
+                console.log('📊 Returning localStorage payments:', Array.isArray(result), result.length);
+                return result;
             }
             
             const snapshot = await firebase.database().ref('payments').once('value');
@@ -829,22 +840,32 @@ async function getPaymentsData() {
                 // Convert nested Firebase structure to flat array
                 const payments = [];
                 Object.values(paymentsData).forEach(yearData => {
-                    Object.values(yearData).forEach(monthData => {
-                        Object.values(monthData).forEach(payment => {
-                            payments.push(payment);
+                    if (yearData && typeof yearData === 'object') {
+                        Object.values(yearData).forEach(monthData => {
+                            if (monthData && typeof monthData === 'object') {
+                                Object.values(monthData).forEach(payment => {
+                                    if (payment) payments.push(payment);
+                                });
+                            }
                         });
-                    });
+                    }
                 });
+                console.log('📊 Firebase payments fetched:', Array.isArray(payments), payments.length);
                 return payments;
             }
+            console.log('📊 No Firebase payments data, returning empty array');
             return [];
             
         } catch (error) {
             console.error('Firebase payments fetch failed:', error);
-            return [];
+            // Fallback to localStorage
+            const localPayments = localStorage.getItem('payments');
+            return localPayments ? JSON.parse(localPayments) : [];
         }
     }
-    return [];
+    // Fallback to localStorage when Firebase is not available
+    const localPayments = localStorage.getItem('payments');
+    return localPayments ? JSON.parse(localPayments) : [];
 }
 
 async function savePaymentsData(payments) {
@@ -1214,7 +1235,10 @@ async function getBillsData() {
             const user = firebase.auth().currentUser;
             if (!user) {
                 console.log('❌ User not authenticated for bills fetch');
-                return [];
+                const localBills = localStorage.getItem('bills');
+                const result = localBills ? JSON.parse(localBills) : [];
+                console.log('📊 Returning localStorage bills:', Array.isArray(result), result.length);
+                return result;
             }
             
             const snapshot = await firebase.database().ref('bills').once('value');
@@ -1224,22 +1248,32 @@ async function getBillsData() {
                 // Convert nested Firebase structure to flat array
                 const bills = [];
                 Object.values(billsData).forEach(yearData => {
-                    Object.values(yearData).forEach(monthData => {
-                        Object.values(monthData).forEach(bill => {
-                            bills.push(bill);
+                    if (yearData && typeof yearData === 'object') {
+                        Object.values(yearData).forEach(monthData => {
+                            if (monthData && typeof monthData === 'object') {
+                                Object.values(monthData).forEach(bill => {
+                                    if (bill) bills.push(bill);
+                                });
+                            }
                         });
-                    });
+                    }
                 });
+                console.log('📊 Firebase bills fetched:', Array.isArray(bills), bills.length);
                 return bills;
             }
+            console.log('📊 No Firebase bills data, returning empty array');
             return [];
             
         } catch (error) {
             console.error('Firebase bills fetch failed:', error);
-            return [];
+            // Fallback to localStorage
+            const localBills = localStorage.getItem('bills');
+            return localBills ? JSON.parse(localBills) : [];
         }
     }
-    return [];
+    // Fallback to localStorage when Firebase is not available
+    const localBills = localStorage.getItem('bills');
+    return localBills ? JSON.parse(localBills) : [];
 }
 
 async function saveBillsData(bills) {
@@ -1349,9 +1383,10 @@ async function loadSocietyInfo() {
     // Refresh current section if it's bills or payments (they use society info)
     const activeSection = document.querySelector('.nav-item.active')?.dataset?.section;
     if (activeSection === 'billing' || activeSection === 'payments') {
-        setTimeout(async () => {
-            await loadSectionData(activeSection);
-        }, 100);
+        // setTimeout(async () => {
+        //     await loadSectionData(activeSection);
+        // }, 100);
+        loadSectionData(activeSection).catch(console.error);
     }
     
     console.log('Society information updated across all sections:', societyInfo);
@@ -1749,7 +1784,7 @@ async function deleteBill(billId) {
         return;
     }
     
-    const bills = getBillsData();
+    const bills = await getBillsData();
     const billToDelete = bills.find(bill => bill.id === billId);
     
     if (!billToDelete) {
@@ -1769,8 +1804,8 @@ async function deleteBill(billId) {
 }
 
 // View bill function
-function viewBill(billId) {
-    const bills = getBillsData();
+async function viewBill(billId) {
+    const bills = await getBillsData();
     const bill = bills.find(b => b.id === billId);
     
     if (!bill) {
@@ -1899,8 +1934,8 @@ function getA5BillCSS() {
 }
 
 // Function to record payment for a specific bill
-function recordPaymentForBill(billId) {
-    const bills = getBillsData();
+async function recordPaymentForBill(billId) {
+    const bills = await getBillsData();
     const bill = bills.find(b => b.id === billId);
     
     if (!bill) {
@@ -1912,26 +1947,32 @@ function recordPaymentForBill(billId) {
     showRecordPaymentModal();
     
     // Wait for modal to be created, then pre-fill values
-    setTimeout(() => {
-        const flatNumberField = document.getElementById('paymentFlatNumber');
-        const amountField = document.getElementById('paymentAmount');
-        
-        if (flatNumberField) {
-            flatNumberField.value = bill.flatNumber;
-            flatNumberField.dispatchEvent(new Event('change')); // Trigger change event to load payment heads
-        }
-        
-        // Calculate outstanding amount
-        const payments = getPaymentsData();
-        const billPayments = payments.filter(payment => 
-            payment.flatNumber === bill.flatNumber && 
-            payment.date >= bill.billDate
-        );
-        const totalPaid = billPayments.reduce((sum, payment) => sum + payment.amount, 0);
-        const outstandingAmount = Math.max(0, bill.totalAmount - totalPaid);
-        
-        if (amountField) {
-            amountField.value = outstandingAmount;
+    setTimeout(async () => {
+        try {
+            const flatNumberField = document.getElementById('paymentFlatNumber');
+            const amountField = document.getElementById('paymentAmount');
+            
+            if (flatNumberField) {
+                flatNumberField.value = bill.flatNumber;
+                flatNumberField.dispatchEvent(new Event('change')); // Trigger change event to load payment heads
+            }
+            
+            // Calculate outstanding amount
+            const payments = await getPaymentsData();
+            if (Array.isArray(payments)) {
+                const billPayments = payments.filter(payment => 
+                    payment.flatNumber === bill.flatNumber && 
+                    payment.date >= bill.billDate
+                );
+                const totalPaid = billPayments.reduce((sum, payment) => sum + payment.amount, 0);
+                const outstandingAmount = Math.max(0, bill.totalAmount - totalPaid);
+                
+                if (amountField) {
+                    amountField.value = outstandingAmount;
+                }
+            }
+        } catch (error) {
+            console.error('Error in payment modal pre-fill:', error);
         }
     }, 100);
 }
@@ -3206,10 +3247,10 @@ function showGenerateBillsModal() {
     }
 }
 
-function showRecordPaymentModal() {
-    const flats = getFlatsData();
-    const bills = getBillsData();
-    const banks = getBanksData();
+async function showRecordPaymentModal() {
+    const flats = await getFlatsData();
+    const bills = await getBillsData();
+    const banks = await getBanksData();
     
     const modal = createModal('Record Payment', `
         <form id="recordPaymentForm">
@@ -3635,8 +3676,8 @@ function clearFlatHighlights() {
 }
 
 // Try to auto-select flat based on search term
-function tryAutoSelectFlat(searchTerm) {
-    const flats = getFlatsData();
+async function tryAutoSelectFlat(searchTerm) {
+    const flats = await getFlatsData();
     const searchLower = searchTerm.toLowerCase().trim();
     
     // First try exact flat number match
@@ -5806,8 +5847,8 @@ let currentBillSequence = 0;
 let currentBillPeriod = '';
 
 // Generate sequential bill number
-function generateBillNumber(year, month) {
-    const bills = getBillsData();
+async function generateBillNumber(year, month) {
+    const bills = await getBillsData();
     const yearMonth = `${year}-${month.toString().padStart(2, '0')}`;
     
     // Reset sequence counter if this is a new period
@@ -5845,8 +5886,8 @@ function generateBillNumber(year, month) {
 }
 
 // Generate sequential receipt number
-function generateReceiptNumber(year, month) {
-    const payments = getPaymentsData();
+async function generateReceiptNumber(year, month) {
+    const payments = await getPaymentsData();
     const yearMonth = `${year}-${month.toString().padStart(2, '0')}`;
     
     // Find all receipts for this year-month
@@ -5977,7 +6018,7 @@ async function handleAddFlat(e) {
         createdDate: new Date().toISOString()
     };
     
-    const flats = getFlatsData();
+    const flats = await getFlatsData();
     
     // Check if flat number already exists
     if (flats.find(flat => flat.flatNumber === flatData.flatNumber)) {
@@ -6019,8 +6060,8 @@ async function handleGenerateBills(e) {
     }
     
     const period = `${selectedYear}-${selectedMonth.padStart(2, '0')}`;
-    const flats = getFlatsData();
-    const bills = getBillsData();
+    const flats = await getFlatsData();
+    const bills = await getBillsData();
     
     // Validate flats exist
     if (flats.length === 0) {
@@ -6045,9 +6086,9 @@ async function handleGenerateBills(e) {
 // Enhanced Bill Generation with Configuration
 async function generateMonthlyBillsWithConfig(selectedMonth, selectedYear, config) {
     const period = `${selectedYear}-${selectedMonth.padStart(2, '0')}`;
-    const flats = getFlatsData();
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const flats = await getFlatsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     
     let generatedCount = 0;
     const newBills = [];
@@ -6057,7 +6098,7 @@ async function generateMonthlyBillsWithConfig(selectedMonth, selectedYear, confi
     const dueDate = new Date(selectedYear, selectedMonthNum, config.dueDay || 10);
     const dueDateString = dueDate.toISOString().split('T')[0];
     
-    flats.forEach(flat => {
+    for (const flat of flats) {
         // 1. Get base charges from configuration
         console.log(`🏠 Flat ${flat.flatNumber} - Status: "${flat.status}", OccupancyType: "${flat.occupancyType}"`);
         
@@ -6139,7 +6180,7 @@ async function generateMonthlyBillsWithConfig(selectedMonth, selectedYear, confi
         // 5. Create bill data
         const billData = {
             id: generateId(),
-            billNumber: generateBillNumber(selectedYear, selectedMonth),
+            billNumber: await generateBillNumber(selectedYear, selectedMonth),
             flatNumber: flat.flatNumber,
             memberName: flat.ownerName,
             period: period,
@@ -6173,7 +6214,7 @@ async function generateMonthlyBillsWithConfig(selectedMonth, selectedYear, confi
         
         newBills.push(billData);
         generatedCount++;
-    });
+    }
     
     // Save all new bills
     const allBills = [...bills, ...newBills];
@@ -6382,9 +6423,9 @@ function calculateCumulativeOutstanding(flatNumber, bills, payments, currentPeri
 }
 
 // Enhanced function to get member outstanding amounts
-function getMemberOutstandingAmounts(flatNumber) {
+async function getMemberOutstandingAmounts(flatNumber) {
     // First check flat data for outstanding amount
-    const flats = getFlatsData();
+    const flats = await getFlatsData();
     const flat = flats.find(f => f.flatNumber === flatNumber);
     
     if (flat && flat.outstandingAmount && flat.outstandingAmount > 0) {
@@ -6401,11 +6442,11 @@ function getMemberOutstandingAmounts(flatNumber) {
 }
 
 // Test function to verify cumulative outstanding calculation
-window.testCumulativeOutstanding = function(flatNumber) {
+window.testCumulativeOutstanding = async function(flatNumber) {
     console.log(`\n🧪 === Testing CUMULATIVE Outstanding Logic for Flat ${flatNumber} ===`);
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     
     // Test for November (should include October outstanding)
     const novOutstanding = calculateCumulativeOutstanding(flatNumber, bills, payments, '2025-11');
@@ -6426,8 +6467,8 @@ window.testCumulativeOutstanding = function(flatNumber) {
 };
 
 // Simple debug - check bill amounts
-window.checkBillAmounts = function() {
-    const bills = getBillsData();
+window.checkBillAmounts = async function() {
+    const bills = await getBillsData();
     
     bills.forEach(bill => {
         console.log(`${bill.period}: Total=${bill.totalAmount}, Base=${bill.baseAmount}`);
@@ -6466,11 +6507,11 @@ window.refreshTableDisplay = function() {
 };
 
 // Debug specific bill calculation
-window.debugBillCalculation = function(flatNumber, period) {
+window.debugBillCalculation = async function(flatNumber, period) {
     console.log(`\n🔍 === DEBUGGING BILL CALCULATION for Flat ${flatNumber}, Period ${period} ===`);
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     
     console.log(`\n📋 All Bills for Flat ${flatNumber}:`);
     const flatBills = bills.filter(b => b.flatNumber === flatNumber);
@@ -6494,11 +6535,11 @@ window.debugBillCalculation = function(flatNumber, period) {
 };
 
 // Debug function to check current data
-window.debugCurrentData = function() {
+window.debugCurrentData = async function() {
     console.log(`\n🔍 === DEBUGGING CURRENT DATA ===`);
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     
     console.log(`📋 Total Bills: ${bills.length}`);
     bills.forEach(bill => {
@@ -6539,10 +6580,10 @@ window.debugCurrentData = function() {
 };
 
 // Function to regenerate all bills with correct cumulative logic
-window.regenerateAllBillsWithCorrectLogic = function() {
+window.regenerateAllBillsWithCorrectLogic = async function() {
     console.log(`\n🔄 === REGENERATING ALL BILLS WITH CORRECT LOGIC ===`);
     
-    const bills = getBillsData();
+    const bills = await getBillsData();
     const config = getBillConfiguration();
     
     if (!config) {
@@ -6654,12 +6695,12 @@ function recordPaymentForBill(flatNumber, period, outstandingAmount) {
 }
 
 // Delete Bill Function
-function deleteBill(billId) {
+async function deleteBill(billId) {
     if (!confirm('Are you sure you want to delete this bill? This action cannot be undone!')) {
         return;
     }
     
-    const bills = getBillsData();
+    const bills = await getBillsData();
     const billToDelete = bills.find(bill => bill.id === billId);
     
     if (!billToDelete) {
@@ -6679,11 +6720,11 @@ function deleteBill(billId) {
 }
 
 // Debug function to check member outstanding data
-function debugMemberOutstanding() {
+async function debugMemberOutstanding() {
     const memberOutstanding = JSON.parse(localStorage.getItem('memberOutstanding') || '[]');
     console.log('🔍 All Member Outstanding Data:', memberOutstanding);
     
-    const flats = getFlatsData();
+    const flats = await getFlatsData();
     flats.forEach(flat => {
         const flatOutstanding = memberOutstanding.filter(item => 
             item.flatNumber === flat.flatNumber && item.status === 'pending'
@@ -6703,9 +6744,9 @@ function debugMemberOutstanding() {
 }
 
 // Enhanced Multi-Month Payment Recording with Bill Status Update
-function updateBillStatusAfterPayment(flatNumber, paymentAmount, paymentHeads, paymentDate, paymentFromMonth = '', paymentToMonth = '') {
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+async function updateBillStatusAfterPayment(flatNumber, paymentAmount, paymentHeads, paymentDate, paymentFromMonth = '', paymentToMonth = '') {
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     let updatedBills = [...bills];
     let billsUpdated = false;
     
@@ -6885,7 +6926,7 @@ function migrateBillsWithoutHeadAmounts() {
 }
 
 // Function to completely clean all data and start fresh
-function cleanAllData() {
+async function cleanAllData() {
     console.log('🗑️ Starting complete data cleanup...');
     
     // List of all localStorage keys to clean
@@ -6904,7 +6945,7 @@ function cleanAllData() {
     });
     
     // Keep flats and society info, but reset outstanding amounts
-    const flats = getFlatsData();
+    const flats = await getFlatsData();
     if (flats && flats.length > 0) {
         flats.forEach(flat => {
             flat.outstandingAmount = 0;
@@ -6977,8 +7018,8 @@ async function calculateOutstandingAmounts() {
 }
 
 // Test function to add outstanding amounts to flats for testing
-function addTestOutstandingAmounts() {
-    const flats = getFlatsData();
+async function addTestOutstandingAmounts() {
+    const flats = await getFlatsData();
     let updated = false;
     
     flats.forEach(flat => {
@@ -6999,8 +7040,8 @@ function addTestOutstandingAmounts() {
 }
 
 // Function to clear all outstanding amounts
-function clearAllOutstandingAmounts() {
-    const flats = getFlatsData();
+async function clearAllOutstandingAmounts() {
+    const flats = await getFlatsData();
     let updated = false;
     
     flats.forEach(flat => {
@@ -7157,9 +7198,9 @@ function getMonthsDifference(startDate, endDate) {
 }
 
 // Calculate outstanding amount for a flat from previous unpaid bills + initial outstanding
-function calculateOutstandingAmount(flatNumber, existingBills) {
-    const payments = getPaymentsData();
-    const flats = getFlatsData();
+async function calculateOutstandingAmount(flatNumber, existingBills) {
+    const payments = await getPaymentsData();
+    const flats = await getFlatsData();
     
     // Get flat data to check for initial outstanding amount
     const flatData = flats.find(flat => flat.flatNumber === flatNumber);
@@ -7238,9 +7279,9 @@ function calculateOutstandingAmount(flatNumber, existingBills) {
 }
 
 // Enhanced function to calculate head-wise outstanding amounts
-function calculateOutstandingAmountEnhanced(flatNumber, existingBills) {
-    const payments = getPaymentsData();
-    const flats = getFlatsData();
+async function calculateOutstandingAmountEnhanced(flatNumber, existingBills) {
+    const payments = await getPaymentsData();
+    const flats = await getFlatsData();
     
     console.log(`\n🔍 === Head-wise Outstanding Calculation for Flat ${flatNumber} ===`);
     
@@ -7374,12 +7415,12 @@ function calculateOutstandingAmountEnhanced(flatNumber, existingBills) {
 }
 
 // Console command to test outstanding calculation for specific flat
-window.testOutstanding = function(flatNumber) {
+window.testOutstanding = async function(flatNumber) {
     console.log(`\n🧪 === Testing Outstanding Calculation for Flat ${flatNumber} ===`);
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
-    const flats = getFlatsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
+    const flats = await getFlatsData();
     
     const flatData = flats.find(flat => flat.flatNumber === flatNumber);
     
@@ -7401,11 +7442,11 @@ window.testOutstanding = function(flatNumber) {
 };
 
 // Console command to test head-wise carry forward logic
-window.testHeadWiseCarryForward = function(flatNumber) {
+window.testHeadWiseCarryForward = async function(flatNumber) {
     console.log(`\n🧪 === Testing Head-wise Carry Forward for Flat ${flatNumber} ===`);
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     const config = getBillConfiguration();
     
     // Test October bill (previous month)
@@ -7557,11 +7598,11 @@ window.fixBillingFilter = function() {
 };
 
 // Console command to clear flat outstanding and regenerate bills
-window.fixFlatBills = function(flatNumber) {
+window.fixFlatBills = async function(flatNumber) {
     console.log(`🔧 Fixing bills for Flat ${flatNumber}...`);
     
     // Clear outstanding amount
-    const flats = getFlatsData();
+    const flats = await getFlatsData();
     const flatIndex = flats.findIndex(flat => flat.flatNumber === flatNumber);
     
     if (flatIndex !== -1) {
@@ -7580,11 +7621,11 @@ window.fixFlatBills = function(flatNumber) {
 };
 
 // Console command to test bill structure
-window.testBillLogic = function(flatNumber) {
+window.testBillLogic = async function(flatNumber) {
     console.log(`\n🧪 === Testing Bill Logic for Flat ${flatNumber} ===`);
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     const flatBills = bills.filter(bill => bill.flatNumber === flatNumber);
     
     flatBills.forEach(bill => {
@@ -7637,10 +7678,10 @@ window.checkFlatPayments = function(flatNumber) {
 };
 
 // Console command to fix existing payments (add period field)
-window.fixExistingPayments = function() {
+window.fixExistingPayments = async function() {
     console.log(`\n🔧 === Fixing Existing Payments (Adding Period Field) ===`);
     
-    const payments = getPaymentsData();
+    const payments = await getPaymentsData();
     let fixedCount = 0;
     
     payments.forEach(payment => {
@@ -7669,10 +7710,10 @@ window.fixExistingPayments = function() {
 };
 
 // Console command to update payment period manually
-window.updatePaymentPeriod = function(paymentId, newPeriod) {
+window.updatePaymentPeriod = async function(paymentId, newPeriod) {
     console.log(`\n🔧 === Updating Payment Period ===`);
     
-    const payments = getPaymentsData();
+    const payments = await getPaymentsData();
     const payment = payments.find(p => p.id === paymentId || p.receiptNumber === paymentId);
     
     if (!payment) {
@@ -7695,11 +7736,11 @@ window.updatePaymentPeriod = function(paymentId, newPeriod) {
 };
 
 // Console command to assign payment to specific bill
-window.assignPaymentToBill = function(flatNumber, paymentReceiptNo, billPeriod) {
+window.assignPaymentToBill = async function(flatNumber, paymentReceiptNo, billPeriod) {
     console.log(`\n🔧 === Assigning Payment to Bill ===`);
     
-    const payments = getPaymentsData();
-    const bills = getBillsData();
+    const payments = await getPaymentsData();
+    const bills = await getBillsData();
     
     const payment = payments.find(p => p.receiptNumber === paymentReceiptNo && p.flatNumber === flatNumber);
     const bill = bills.find(b => b.period === billPeriod && b.flatNumber === flatNumber);
@@ -7729,11 +7770,11 @@ window.assignPaymentToBill = function(flatNumber, paymentReceiptNo, billPeriod) 
 };
 
 // Console command to assign payment to multiple bills (multi-month)
-window.assignPaymentToMultipleBills = function(flatNumber, paymentReceiptNo, fromPeriod, toPeriod) {
+window.assignPaymentToMultipleBills = async function(flatNumber, paymentReceiptNo, fromPeriod, toPeriod) {
     console.log(`\n🔧 === Assigning Payment to Multiple Bills ===`);
     
-    const payments = getPaymentsData();
-    const bills = getBillsData();
+    const payments = await getPaymentsData();
+    const bills = await getBillsData();
     
     const payment = payments.find(p => p.receiptNumber === paymentReceiptNo && p.flatNumber === flatNumber);
     
@@ -7761,11 +7802,11 @@ window.assignPaymentToMultipleBills = function(flatNumber, paymentReceiptNo, fro
 };
 
 // Console command to debug payment matching
-window.debugPaymentMatching = function(flatNumber = '001') {
+window.debugPaymentMatching = async function(flatNumber = '001') {
     console.log(`\n🔍 === Debugging Payment Matching for Flat ${flatNumber} ===`);
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     
     const flatBills = bills.filter(b => b.flatNumber === flatNumber).sort((a, b) => new Date(a.period) - new Date(b.period));
     const flatPayments = payments.filter(p => p.flatNumber === flatNumber);
@@ -7824,11 +7865,11 @@ window.debugPaymentMatching = function(flatNumber = '001') {
 };
 
 // Console command to fix multi-month payment display issue
-window.fixMultiMonthPayments = function(flatNumber) {
+window.fixMultiMonthPayments = async function(flatNumber) {
     console.log(`\n🔧 === Fixing Multi-Month Payment Display for Flat ${flatNumber} ===`);
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     
     const flatBills = bills.filter(b => b.flatNumber === flatNumber);
     const flatPayments = payments.filter(p => p.flatNumber === flatNumber);
@@ -7859,10 +7900,10 @@ window.fixMultiMonthPayments = function(flatNumber) {
 };
 
 // Console command to test payment form bill loading
-window.testPaymentFormBills = function(flatNumber) {
+window.testPaymentFormBills = async function(flatNumber) {
     console.log(`\n🧪 === Testing Payment Form Bills for Flat ${flatNumber} ===`);
     
-    const bills = getBillsData();
+    const bills = await getBillsData();
     const flatBills = bills.filter(bill => bill.flatNumber === flatNumber && bill.totalAmount > 0);
     
     console.log(`\n📊 Total Bills Found: ${flatBills.length}`);
@@ -7895,11 +7936,11 @@ window.testPaymentFormBills = function(flatNumber) {
 };
 
 // Console command to debug maintenance calculation
-window.debugMaintenanceCalculation = function(flatNumber) {
+window.debugMaintenanceCalculation = async function(flatNumber) {
     console.log(`\n🔧 === Debugging Maintenance Calculation for Flat ${flatNumber} ===`);
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     const flatBills = bills.filter(b => b.flatNumber === flatNumber);
     
     console.log(`\n📊 Bill Breakdown Analysis:`);
@@ -7948,10 +7989,10 @@ window.debugMaintenanceCalculation = function(flatNumber) {
 };
 
 // Console command to fix December bill amount
-window.fixDecemberBill = function(flatNumber) {
+window.fixDecemberBill = async function(flatNumber) {
     console.log(`\n🔧 === Fixing December Bill for Flat ${flatNumber} ===`);
     
-    const bills = getBillsData();
+    const bills = await getBillsData();
     const decemberBill = bills.find(b => b.flatNumber === flatNumber && b.period === '2025-12');
     
     if (!decemberBill) {
@@ -8001,10 +8042,10 @@ window.fixDecemberBill = function(flatNumber) {
 };
 
 // Console command to fix all bill calculations permanently
-window.fixAllBillCalculations = function(flatNumber) {
+window.fixAllBillCalculations = async function(flatNumber) {
     console.log(`\n🔧 === Fixing ALL Bill Calculations for Flat ${flatNumber} ===`);
     
-    const bills = getBillsData();
+    const bills = await getBillsData();
     const flatBills = bills.filter(b => b.flatNumber === flatNumber).sort((a, b) => new Date(a.period) - new Date(b.period));
     
     console.log(`\n📊 Found ${flatBills.length} bills to fix:`);
@@ -8074,7 +8115,7 @@ window.clearAllBillsAndStartFresh = function() {
 };
 
 // Console command to test step-by-step bill generation
-window.testStepByStepBilling = function(flatNumber = '001') {
+window.testStepByStepBilling = async function(flatNumber = '001') {
     console.log(`\n🧪 === Testing Step-by-Step Bill Generation for Flat ${flatNumber} ===`);
     
     // Clear all existing bills first
@@ -8093,14 +8134,14 @@ window.testStepByStepBilling = function(flatNumber = '001') {
     
     console.log(`\n🔄 Generating bills step by step:`);
     
-    months.forEach((monthData, index) => {
+    for (const [index, monthData] of months.entries()) {
         console.log(`\n📅 === ${monthData.name} ${monthData.year} ===`);
         
         // Generate bill for this month
         generateMonthlyBillsWithConfig(monthData.month, monthData.year, config);
         
         // Check the generated bill
-        const bills = getBillsData();
+        const bills = await getBillsData();
         const currentBill = bills.find(b => b.flatNumber === flatNumber && b.period === `${monthData.year}-${monthData.month}`);
         
         if (currentBill) {
@@ -8122,10 +8163,10 @@ window.testStepByStepBilling = function(flatNumber = '001') {
         } else {
             console.log(`❌ ${monthData.name} bill not found!`);
         }
-    });
+    }
     
     console.log(`\n📊 Final Bill Summary:`);
-    const finalBills = getBillsData().filter(b => b.flatNumber === flatNumber);
+    const finalBills = (await getBillsData()).filter(b => b.flatNumber === flatNumber);
     finalBills.forEach(bill => {
         console.log(`   ${getMonthName(bill.month)} ${bill.year}: ₹${bill.totalAmount}`);
     });
@@ -8135,11 +8176,11 @@ window.testStepByStepBilling = function(flatNumber = '001') {
 };
 
 // Console command to test December bill generation
-window.testDecemberGeneration = function() {
+window.testDecemberGeneration = async function() {
     console.log(`\n🧪 === Testing December Bill Generation ===`);
     
     // Delete existing December bills first
-    const bills = getBillsData();
+    const bills = await getBillsData();
     const nonDecemberBills = bills.filter(b => b.period !== '2025-12');
     saveBillsData(nonDecemberBills);
     
@@ -8154,7 +8195,7 @@ window.testDecemberGeneration = function() {
     generateMonthlyBillsWithConfig('12', '2025', config);
     
     // Check result
-    const newBills = getBillsData();
+    const newBills = await getBillsData();
     const decemberBill = newBills.find(b => b.flatNumber === '001' && b.period === '2025-12');
     
     if (decemberBill) {
@@ -8177,11 +8218,11 @@ window.testDecemberGeneration = function() {
 };
 
 // Console command to check all bills in system
-window.checkAllBills = function() {
+window.checkAllBills = async function() {
     console.log(`\n🔍 === Checking All Bills in System ===`);
     
-    const bills = getBillsData();
-    const flats = getFlatsData();
+    const bills = await getBillsData();
+    const flats = await getFlatsData();
     
     console.log(`\n📊 Total Bills: ${bills.length}`);
     console.log(`📊 Total Flats: ${flats.length}`);
@@ -8222,7 +8263,7 @@ window.checkAllBills = function() {
 };
 
 // Console command to generate missing bills
-window.generateMissingBills = function() {
+window.generateMissingBills = async function() {
     console.log(`\n🔧 === Generating Missing Bills ===`);
     
     const config = getBillConfiguration();
@@ -8231,8 +8272,8 @@ window.generateMissingBills = function() {
         return;
     }
     
-    const bills = getBillsData();
-    const flats = getFlatsData();
+    const bills = await getBillsData();
+    const flats = await getFlatsData();
     const expectedPeriods = ['2025-10', '2025-11'];
     
     let generatedCount = 0;
@@ -8261,11 +8302,11 @@ window.generateMissingBills = function() {
 };
 
 // Console command to quickly test current bill status
-window.testBillStatus = function() {
+window.testBillStatus = async function() {
     console.log('\n🧪 === Testing Current Bill Status ===');
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     
     // Find October and November bills for flat 101
     const octBill = bills.find(b => b.flatNumber === '101' && b.period === '2025-10');
@@ -8307,11 +8348,11 @@ window.testBillStatus = function() {
 };
 
 // Console command to check payment matching for specific flat
-window.checkFlatPayments = function(flatNumber) {
+window.checkFlatPayments = async function(flatNumber) {
     console.log(`\n🔍 === Checking Payments for Flat ${flatNumber} ===`);
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     
     const flatBills = bills.filter(b => b.flatNumber === flatNumber);
     const flatPayments = payments.filter(p => p.flatNumber === flatNumber);
@@ -8345,11 +8386,11 @@ window.checkFlatPayments = function(flatNumber) {
 };
 
 // Console command to fix current payment matching issues
-window.fixPaymentIssues = function() {
+window.fixPaymentIssues = async function() {
     console.log('\n🔧 === Fixing Payment Matching Issues ===');
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     
     // Find problematic bills
     const octBill = bills.find(b => b.flatNumber === '101' && b.period === '2025-10');
@@ -8382,11 +8423,11 @@ window.fixPaymentIssues = function() {
 };
 
 // Console command to fix outstanding amounts in existing bills
-window.fixExistingBills = function(period = null) {
+window.fixExistingBills = async function(period = null) {
     console.log('🔧 Fixing outstanding amounts in existing bills...');
     
-    const bills = getBillsData();
-    const flats = getFlatsData();
+    const bills = await getBillsData();
+    const flats = await getFlatsData();
     let fixedCount = 0;
     
     // If period is specified, fix only that period's bills
@@ -8445,10 +8486,10 @@ window.fixExistingBills = function(period = null) {
 };
 
 // Console command to test head-wise outstanding
-window.testHeadWiseOutstanding = function(flatNumber) {
+window.testHeadWiseOutstanding = async function(flatNumber) {
     console.log(`\n🧪 === Testing Head-wise Outstanding for Flat ${flatNumber} ===`);
     
-    const bills = getBillsData();
+    const bills = await getBillsData();
     const previousBills = bills.filter(bill => bill.period !== '2025-11'); // Exclude current month
     
     const result = calculateOutstandingAmountEnhanced(flatNumber, previousBills);
@@ -8466,10 +8507,10 @@ window.testHeadWiseOutstanding = function(flatNumber) {
 };
 
 // Console command to simulate November bill generation
-window.simulateNovemberBill = function(flatNumber) {
+window.simulateNovemberBill = async function(flatNumber) {
     console.log(`\n🎯 === Simulating November Bill for Flat ${flatNumber} ===`);
     
-    const bills = getBillsData();
+    const bills = await getBillsData();
     const config = getBillConfiguration();
     
     // Get October bills (previous month)
@@ -8630,7 +8671,7 @@ function showQuickBillGenerationModal() {
 }
 
 // Process the quick bill generation with selected month and year
-function processQuickBillGeneration() {
+async function processQuickBillGeneration() {
     const selectedMonth = document.getElementById('quickBillMonth').value;
     const selectedYear = document.getElementById('quickBillYear').value;
     
@@ -8646,14 +8687,14 @@ function processQuickBillGeneration() {
         return;
     }
     
-    const flats = getFlatsData();
+    const flats = await getFlatsData();
     if (flats.length === 0) {
         showNotification('❌ Please add flats first!', 'error');
         return;
     }
     
     const period = `${selectedYear}-${selectedMonth}`;
-    const bills = getBillsData();
+    const bills = await getBillsData();
     
     // Check if bills already exist for selected period
     const existingBills = bills.filter(bill => bill.period === period);
@@ -8674,21 +8715,21 @@ function processQuickBillGeneration() {
 }
 
 // Function to generate November 2025 bills specifically
-function generateNovemberBills() {
+async function generateNovemberBills() {
     const config = getBillConfiguration();
     if (!config) {
         showNotification('❌ Please set Bill Configuration first!', 'error');
         return;
     }
     
-    const flats = getFlatsData();
+    const flats = await getFlatsData();
     if (flats.length === 0) {
         showNotification('❌ Please add flats first!', 'error');
         return;
     }
     
     const period = '2025-11';
-    const bills = getBillsData();
+    const bills = await getBillsData();
     
     // Check if November bills already exist
     const existingBills = bills.filter(bill => bill.period === period);
@@ -8735,8 +8776,8 @@ async function handleRecordPayment(e) {
     const parkingFromMonth = document.getElementById('parkingFromMonth') ? document.getElementById('parkingFromMonth').value : '';
     const parkingToMonth = document.getElementById('parkingToMonth') ? document.getElementById('parkingToMonth').value : '';
     
-    const flats = getFlatsData();
-    const payments = getPaymentsData();
+    const flats = await getFlatsData();
+    const payments = await getPaymentsData();
     
     const flat = flats.find(f => f.flatNumber === flatNumber);
     if (!flat) {
@@ -8851,7 +8892,7 @@ async function handleRecordPayment(e) {
     
     // Update bill status after payment (enhanced version)
     // Pass payment period information for multi-month payment handling
-    updateBillStatusAfterPayment(flatNumber, amount, selectedHeads, paymentDate, parkingFromMonth, parkingToMonth);
+    await updateBillStatusAfterPayment(flatNumber, amount, selectedHeads, paymentDate, parkingFromMonth, parkingToMonth);
     
     // Reduce payment heads from specific bill categories
     if (selectedHeads && selectedHeads.length > 0) {
@@ -8872,9 +8913,9 @@ async function handleRecordPayment(e) {
 }
 
 // Function to reduce payment heads from flat when payment is made
-function reducePaymentHeadsFromFlat(flatNumber, paymentHeads) {
-    const bills = getBillsData();
-    const flats = getFlatsData();
+async function reducePaymentHeadsFromFlat(flatNumber, paymentHeads) {
+    const bills = await getBillsData();
+    const flats = await getFlatsData();
     
     console.log(`Reducing payment heads from Flat ${flatNumber}:`, paymentHeads);
     
@@ -8978,8 +9019,8 @@ function reducePaymentHeadsFromFlat(flatNumber, paymentHeads) {
 }
 
 // Handle payment of initial outstanding amount
-function handleInitialOutstandingPayment(flatNumber, paymentHeads) {
-    const flats = getFlatsData();
+async function handleInitialOutstandingPayment(flatNumber, paymentHeads) {
+    const flats = await getFlatsData();
     const flatIndex = flats.findIndex(flat => flat.flatNumber === flatNumber);
     
     if (flatIndex === -1) return;
@@ -9005,8 +9046,8 @@ function handleInitialOutstandingPayment(flatNumber, paymentHeads) {
 }
 
 // Update bill status after payment is recorded
-function updateBillAfterPayment(flatNumber, paymentAmount, paymentDate, paymentHeads) {
-    const bills = getBillsData();
+async function updateBillAfterPayment(flatNumber, paymentAmount, paymentDate, paymentHeads) {
+    const bills = await getBillsData();
     const currentDate = new Date(paymentDate);
     const currentMonth = currentDate.getMonth();
     const currentYear = currentDate.getFullYear();
@@ -9254,12 +9295,12 @@ function getReportPeriod() {
     return { startDate, endDate, period };
 }
 
-function generateCollectionReport() {
+async function generateCollectionReport() {
     console.log('Generating Collection Report...');
     
     try {
         const { startDate, endDate, period } = getReportPeriod();
-        const payments = getPaymentsData();
+        const payments = await getPaymentsData();
         const banks = getBanksData();
         
         console.log('Report data:', { payments: payments.length, banks: banks.length });
@@ -9390,10 +9431,10 @@ function generateCollectionReport() {
     }
 }
 
-function generateDuesReport() {
-    const bills = getBillsData();
-    const payments = getPaymentsData();
-    const flats = getFlatsData();
+async function generateDuesReport() {
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
+    const flats = await getFlatsData();
     
     // Calculate outstanding amounts for each flat
     const flatDues = {};
@@ -9956,12 +9997,12 @@ function generateBankReport() {
     showReport('Bank Reconciliation Report', reportContent);
 }
 
-function generateFinancialReport() {
+async function generateFinancialReport() {
     // First, clean up any bank payments that should be marked as expense transactions
     cleanupBankExpenseTransactions();
     
     const { startDate, endDate } = getReportPeriod();
-    const payments = getPaymentsData();
+    const payments = await getPaymentsData();
     const expenses = getExpensesData();
     const bankPayments = getBankPaymentsData();
     
@@ -10198,13 +10239,13 @@ function cleanupBankExpenseTransactions() {
     }
 }
 
-function generateBalanceSheetReport() {
+async function generateBalanceSheetReport() {
     const { startDate, endDate } = getReportPeriod();
-    const payments = getPaymentsData();
+    const payments = await getPaymentsData();
     const expenses = getExpensesData();
     const bankPayments = getBankPaymentsData();
     const banks = getBanksData();
-    const bills = getBillsData();
+    const bills = await getBillsData();
     
     // Calculate Assets
     const totalBankBalance = banks.reduce((sum, bank) => sum + (bank.balance || 0), 0);
@@ -10380,14 +10421,14 @@ function generateBalanceSheetReport() {
     showReport('Balance Sheet Report', reportContent);
 }
 
-function generateAuditReport() {
+async function generateAuditReport() {
     console.log('Generating Audit Trail Report...');
     
     try {
-        const payments = getPaymentsData();
+        const payments = await getPaymentsData();
         const expenses = getExpensesData();
         const bankPayments = getBankPaymentsData();
-        const bills = getBillsData();
+        const bills = await getBillsData();
         
         console.log('Audit data:', { 
             payments: payments.length, 
@@ -10467,16 +10508,16 @@ function generateAuditReport() {
     }
 }
 
-function generateBalanceSheetReport() {
+async function generateBalanceSheetReport() {
     console.log('Generating Balance Sheet Report...');
     
     try {
-        const payments = getPaymentsData();
+        const payments = await getPaymentsData();
         const expenses = getExpensesData();
         const banks = getBanksData();
         const bankPayments = getBankPaymentsData();
-        const bills = getBillsData();
-        const flats = getFlatsData();
+        const bills = await getBillsData();
+        const flats = await getFlatsData();
         
         // Calculate Assets
         const totalBankBalance = banks.reduce((sum, bank) => sum + (bank.balance || 0), 0);
@@ -10621,7 +10662,7 @@ function generateBalanceSheetReport() {
     }
 }
 
-function calculateTotalOutstandingDues(bills, payments) {
+async function calculateTotalOutstandingDues(bills, payments) {
     let totalOutstanding = 0;
     
     // Calculate outstanding from bills
@@ -10637,7 +10678,7 @@ function calculateTotalOutstandingDues(bills, payments) {
     });
     
     // Add outstanding amounts from flats data
-    const flats = getFlatsData();
+    const flats = await getFlatsData();
     flats.forEach(flat => {
         if (flat.outstandingAmount && flat.outstandingAmount > 0) {
             totalOutstanding += flat.outstandingAmount;
@@ -11180,8 +11221,8 @@ function calculateParkingCharges(flat) {
 }
 
 // Edit and Delete Functions
-function editFlat(id) {
-    const flats = getFlatsData();
+async function editFlat(id) {
+    const flats = await getFlatsData();
     const flat = flats.find(f => f.id === id);
     
     if (!flat) {
@@ -11280,7 +11321,7 @@ async function handleEditFlat(e) {
     e.preventDefault();
     
     const flatId = document.getElementById('editFlatId').value;
-    const flats = getFlatsData();
+    const flats = await getFlatsData();
     const flatIndex = flats.findIndex(f => f.id === flatId);
     
     if (flatIndex === -1) {
@@ -11322,7 +11363,7 @@ async function handleEditFlat(e) {
 }
 
 async function deleteFlat(id) {
-    const flats = getFlatsData();
+    const flats = await getFlatsData();
     const flat = flats.find(f => f.id === id);
     
     if (!flat) {
@@ -11380,8 +11421,8 @@ function downloadBillPDF(id) {
     generateBillPDF(bill);
 }
 
-function viewPaymentReceipt(id) {
-    const payments = getPaymentsData();
+async function viewPaymentReceipt(id) {
+    const payments = await getPaymentsData();
     const payment = payments.find(p => p.id === id);
     
     if (!payment) {
@@ -11392,8 +11433,8 @@ function viewPaymentReceipt(id) {
     showPaymentReceiptModal(payment);
 }
 
-function printPaymentReceipt(id) {
-    const payments = getPaymentsData();
+async function printPaymentReceipt(id) {
+    const payments = await getPaymentsData();
     const payment = payments.find(p => p.id === id);
     
     if (!payment) {
@@ -13596,14 +13637,14 @@ function formatMonthRange(fromMonthString, toMonthString) {
 }
 
 // Load Bills for Selected Flat
-function loadFlatBills(flatNumber) {
+async function loadFlatBills(flatNumber) {
     if (!flatNumber) {
         document.getElementById('flatBillsSection').style.display = 'none';
         return;
     }
     
-    const bills = getBillsData();
-    const flats = getFlatsData();
+    const bills = await getBillsData();
+    const flats = await getFlatsData();
     const flatData = flats.find(flat => flat.flatNumber === flatNumber);
     
     // Show ALL bills for this flat (including paid ones for multi-month payments)
@@ -13723,14 +13764,14 @@ function calculateSelectedAmount() {
 }
 
 // Auto-select period based on months count
-function autoSelectPeriod(flatNumber) {
+async function autoSelectPeriod(flatNumber) {
     const monthsCount = parseInt(document.getElementById('monthsCount').value);
     if (!monthsCount || monthsCount < 1) {
         clearPeriodSelection(flatNumber);
         return;
     }
     
-    const bills = getBillsData();
+    const bills = await getBillsData();
     const flatBills = bills.filter(bill => 
         bill.flatNumber === flatNumber && 
         (bill.status === 'pending' || bill.status === 'partial')
@@ -13770,7 +13811,7 @@ function updatePeriodSelection(flatNumber) {
 }
 
 // Calculate amount for selected period
-function calculateSelectedPeriodAmount(flatNumber) {
+async function calculateSelectedPeriodAmount(flatNumber) {
     const fromMonth = document.getElementById('fromMonth').value;
     const toMonth = document.getElementById('toMonth').value;
     
@@ -13779,8 +13820,8 @@ function calculateSelectedPeriodAmount(flatNumber) {
         return;
     }
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     const flatBills = bills.filter(bill => 
         bill.flatNumber === flatNumber && 
         bill.period >= fromMonth && 
@@ -14162,8 +14203,8 @@ function resetPeriodAmounts() {
 }
 
 // Pay the selected bill directly
-function payThisBill(billId) {
-    const bills = getBillsData();
+async function payThisBill(billId) {
+    const bills = await getBillsData();
     const bill = bills.find(b => b.id === billId);
     
     if (!bill) {
@@ -14442,8 +14483,8 @@ function clearAllManualHeads() {
 }
 
 // Test function to check payment heads
-function testPaymentHeads() {
-    const payments = getPaymentsData();
+async function testPaymentHeads() {
+    const payments = await getPaymentsData();
     console.log('All payments:', payments);
     
     payments.forEach((payment, index) => {
@@ -14453,8 +14494,8 @@ function testPaymentHeads() {
 }
 
 // Debug function to check payment heads structure
-function debugPaymentHeads() {
-    const payments = getPaymentsData();
+async function debugPaymentHeads() {
+    const payments = await getPaymentsData();
     console.log('=== PAYMENT HEADS DEBUG ===');
     
     payments.forEach((payment, index) => {
@@ -14477,8 +14518,8 @@ function debugPaymentHeads() {
 }
 
 // Test function to check if payment heads are showing 0 in receipts
-function testReceiptPaymentHeads() {
-    const payments = getPaymentsData();
+async function testReceiptPaymentHeads() {
+    const payments = await getPaymentsData();
     console.log('=== RECEIPT PAYMENT HEADS TEST ===');
     
     payments.forEach((payment, index) => {
@@ -14543,11 +14584,11 @@ function validatePaymentHeads(paymentHeads, totalAmount) {
 }
 
 // Comprehensive function to diagnose payment heads issues
-function diagnosePaymentHeadsIssue() {
+async function diagnosePaymentHeadsIssue() {
     console.log('🔍 === COMPREHENSIVE PAYMENT HEADS DIAGNOSIS ===');
     
-    const payments = getPaymentsData();
-    const bills = getBillsData();
+    const payments = await getPaymentsData();
+    const bills = await getBillsData();
     
     console.log(`Total payments in system: ${payments.length}`);
     console.log(`Total bills in system: ${bills.length}`);
@@ -14616,10 +14657,10 @@ function diagnosePaymentHeadsIssue() {
 }
 
 // Function to fix payments with zero amount heads
-function fixPaymentsWithZeroHeads() {
+async function fixPaymentsWithZeroHeads() {
     console.log('🔧 === FIXING PAYMENTS WITH ZERO HEADS ===');
     
-    const payments = getPaymentsData();
+    const payments = await getPaymentsData();
     let fixedCount = 0;
     
     payments.forEach((payment, index) => {
@@ -14671,11 +14712,11 @@ function fixPaymentsWithZeroHeads() {
 }
 
 // Test function to check if payment heads integration is working
-function testPaymentHeadsIntegration() {
+async function testPaymentHeadsIntegration() {
     console.log('=== TESTING PAYMENT HEADS INTEGRATION ===');
     
     // Test 1: Check if payments have payment heads
-    const payments = getPaymentsData();
+    const payments = await getPaymentsData();
     const paymentsWithHeads = payments.filter(p => p.paymentHeads && p.paymentHeads.length > 0);
     console.log(`Total payments: ${payments.length}`);
     console.log(`Payments with heads: ${paymentsWithHeads.length}`);
@@ -14699,9 +14740,9 @@ function testPaymentHeadsIntegration() {
 }
 
 // Function to add payment heads back to flat when payment is deleted
-function addPaymentHeadsBackToFlat(flatNumber, paymentHeads) {
-    const bills = getBillsData();
-    const flats = getFlatsData();
+async function addPaymentHeadsBackToFlat(flatNumber, paymentHeads) {
+    const bills = await getBillsData();
+    const flats = await getFlatsData();
     
     console.log(`Adding payment heads back to Flat ${flatNumber}:`, paymentHeads);
     
@@ -14803,12 +14844,12 @@ function addPaymentHeadsBackToFlat(flatNumber, paymentHeads) {
 }
 
 // Edit payment record
-function editPaymentRecord(paymentId) {
+async function editPaymentRecord(paymentId) {
     try {
         console.log('Edit payment clicked for ID:', paymentId);
         alert('Edit button clicked! Payment ID: ' + paymentId); // Debug alert
         
-        const payments = getPaymentsData();
+        const payments = await getPaymentsData();
         const payment = payments.find(p => p.id === paymentId);
         
         if (!payment) {
@@ -15097,7 +15138,7 @@ function toggleEditPaymentFields() {
 }
 
 // Handle edit payment form submission
-function handleEditPayment(event) {
+async function handleEditPayment(event) {
     event.preventDefault();
     
     const paymentId = document.getElementById('editPaymentId').value;
@@ -15140,7 +15181,7 @@ function handleEditPayment(event) {
     
     try {
         // Get existing payment data
-        const payments = getPaymentsData();
+        const payments = await getPaymentsData();
         const paymentIndex = payments.findIndex(p => p.id === paymentId);
         
         if (paymentIndex === -1) {
@@ -15232,7 +15273,7 @@ function closeEditPaymentModal() {
 }
 
 // Delete payment record
-function deletePaymentRecord(paymentId) {
+async function deletePaymentRecord(paymentId) {
     // Show confirmation dialog
     const confirmDelete = confirm('Are you sure you want to delete this payment record?\n\nThis action cannot be undone.');
     
@@ -15242,7 +15283,7 @@ function deletePaymentRecord(paymentId) {
     
     try {
         // Get current payments
-        const payments = getPaymentsData();
+        const payments = await getPaymentsData();
         
         // Find payment to delete
         const paymentIndex = payments.findIndex(p => p.id === paymentId);
@@ -15327,7 +15368,7 @@ function deletePaymentRecord(paymentId) {
 }
 
 // Delete bill function
-function deleteBill(billId) {
+async function deleteBill(billId) {
     // Show confirmation dialog
     const confirmDelete = confirm('Are you sure you want to delete this bill?\n\nThis action cannot be undone.');
     
@@ -15337,7 +15378,7 @@ function deleteBill(billId) {
     
     try {
         // Get current bills
-        const bills = getBillsData();
+        const bills = await getBillsData();
         
         // Find bill to delete
         const billIndex = bills.findIndex(b => b.id === billId);
@@ -15464,7 +15505,7 @@ function addToDeletedItems(item, type) {
     console.log(`Added ${type} to deleted items:`, deletedItem);
 }
 
-function restoreDeletedItem(deletedItemId) {
+async function restoreDeletedItem(deletedItemId) {
     const deletedItems = getDeletedItemsData();
     const itemIndex = deletedItems.findIndex(item => item.id === deletedItemId);
     
@@ -15480,7 +15521,7 @@ function restoreDeletedItem(deletedItemId) {
         // Restore based on type
         switch (deletedItem.type) {
             case 'payment':
-                const payments = getPaymentsData();
+                const payments = await getPaymentsData();
                 payments.push(originalData);
                 savePaymentsData(payments);
                 
@@ -15490,7 +15531,7 @@ function restoreDeletedItem(deletedItemId) {
                     console.log(`Reduced payment heads from Flat ${originalData.flatNumber} specific categories`);
                 } else {
                     // If no specific heads, reduce from flat's outstanding amount
-                    const flats = getFlatsData();
+                    const flats = await getFlatsData();
                     const flatIndex = flats.findIndex(flat => flat.flatNumber === originalData.flatNumber);
                     if (flatIndex !== -1) {
                         flats[flatIndex].outstandingAmount = Math.max(0, (flats[flatIndex].outstandingAmount || 0) - originalData.amount);
@@ -15538,7 +15579,7 @@ function restoreDeletedItem(deletedItemId) {
                 break;
                 
             case 'bill':
-                const bills = getBillsData();
+                const bills = await getBillsData();
                 bills.push(originalData);
                 saveBillsData(bills);
                 loadBillingData();
@@ -15702,12 +15743,12 @@ function formatDateLong(dateString) {
 }
 
 // Test function to demonstrate head-wise pending calculation
-function testPendingHeadsCalculation() {
+async function testPendingHeadsCalculation() {
     console.log('\n🧪 === TESTING HEAD-WISE PENDING CALCULATION ===');
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
-    const flats = getFlatsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
+    const flats = await getFlatsData();
     
     console.log(`📊 Data: ${bills.length} bills, ${payments.length} payments, ${flats.length} flats`);
     
@@ -15786,7 +15827,7 @@ window.listAllBills = function() {
 };
 
 // Helper function to generate bills for a specific month
-window.generateBillsForMonth = function(month, year) {
+window.generateBillsForMonth = async function(month, year) {
     const config = getBillConfiguration();
     if (!config) {
         console.error('❌ No bill configuration found! Please set configuration first.');
@@ -15794,7 +15835,7 @@ window.generateBillsForMonth = function(month, year) {
         return;
     }
     
-    const flats = getFlatsData();
+    const flats = await getFlatsData();
     if (flats.length === 0) {
         console.error('❌ No flats found in system! Please add flats first.');
         return;
@@ -15807,7 +15848,7 @@ window.generateBillsForMonth = function(month, year) {
     generateMonthlyBillsWithConfig(month, year, config);
     
     // Verify bills were created
-    const bills = getBillsData();
+    const bills = await getBillsData();
     const period = `${year}-${month.padStart(2, '0')}`;
     const periodBills = bills.filter(b => b.period === period);
     
@@ -15899,13 +15940,13 @@ window.refreshAllBillStatuses = function() {
 };
 
 // Helper to check system status
-window.checkSystemStatus = function() {
+window.checkSystemStatus = async function() {
     console.log('\n🔍 === System Status Check ===\n');
     
     const config = getBillConfiguration();
-    const flats = getFlatsData();
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const flats = await getFlatsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     
     console.log('📋 Bill Configuration:', config ? '✅ Set' : '❌ Not Set');
     if (config) {
@@ -15932,8 +15973,8 @@ window.checkSystemStatus = function() {
 };
 
 // Console command to check bill numbers
-window.checkBillNumbers = function() {
-    const bills = getBillsData();
+window.checkBillNumbers = async function() {
+    const bills = await getBillsData();
     console.log('\n📋 === Bill Numbers Check ===');
     
     bills.sort((a, b) => {
@@ -15961,8 +16002,8 @@ window.checkBillNumbers = function() {
 };
 
 // Console command to fix bill number sequence
-window.fixBillNumberSequence = function(year, month) {
-    const bills = getBillsData();
+window.fixBillNumberSequence = async function(year, month) {
+    const bills = await getBillsData();
     const yearMonth = `${year}-${month.toString().padStart(2, '0')}`;
     
     console.log(`\n🔧 === Fixing Bill Numbers for ${getMonthName(month)} ${year} ===`);
@@ -16000,32 +16041,43 @@ window.fixBillNumberSequence = function(year, month) {
 
 // Auto-fix bill numbers on page load
 window.addEventListener('load', function() {
-    setTimeout(() => {
-        const bills = getBillsData();
-        if (bills.length > 0) {
-            // Check if bill numbers are proper
-            const duplicates = [];
-            const billNumbers = bills.map(b => b.billNumber).filter(Boolean);
+    setTimeout(async () => {
+        try {
+            const bills = await getBillsData();
             
-            billNumbers.forEach((num, index) => {
-                if (billNumbers.indexOf(num) !== index) {
-                    duplicates.push(num);
-                }
-            });
-            
-            if (duplicates.length > 0) {
-                console.log('🔧 Auto-fixing duplicate bill numbers...');
-                fixBillNumberSequence(2025, 10); // Fix October 2025 bills
+            // Check if bills is an array
+            if (!Array.isArray(bills)) {
+                console.log('❌ Bills data is not an array for bill number fix:', bills);
+                return;
             }
+            
+            if (bills.length > 0) {
+                // Check if bill numbers are proper
+                const duplicates = [];
+                const billNumbers = bills.map(b => b.billNumber).filter(Boolean);
+                
+                billNumbers.forEach((num, index) => {
+                    if (billNumbers.indexOf(num) !== index) {
+                        duplicates.push(num);
+                    }
+                });
+                
+                if (duplicates.length > 0) {
+                    console.log('🔧 Auto-fixing duplicate bill numbers...');
+                    fixBillNumberSequence(2025, 10); // Fix October 2025 bills
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error in bill number auto-fix:', error);
         }
     }, 1000);
 });
 
 // Function to update existing bills with member outstanding amounts
-window.updateBillsWithMemberOutstanding = function() {
+window.updateBillsWithMemberOutstanding = async function() {
     console.log('\n🔧 === Updating Bills with Member Outstanding Amounts ===');
     
-    const bills = getBillsData();
+    const bills = await getBillsData();
     let updatedCount = 0;
     
     bills.forEach(bill => {
@@ -16065,10 +16117,10 @@ window.updateBillsWithMemberOutstanding = function() {
 };
 
 // Function to force refresh member outstanding for all bills
-window.refreshMemberOutstandingForAllBills = function() {
+window.refreshMemberOutstandingForAllBills = async function() {
     console.log('\n🔄 === Force Refreshing Member Outstanding for All Bills ===');
     
-    const bills = getBillsData();
+    const bills = await getBillsData();
     let updatedCount = 0;
     
     bills.forEach(bill => {
@@ -16110,11 +16162,11 @@ window.refreshMemberOutstandingForAllBills = function() {
 };
 
 // Function to manually fix occupancy charges for tenant flats
-window.fixOccupancyChargesForTenantFlats = function() {
+window.fixOccupancyChargesForTenantFlats = async function() {
     console.log('\n🔧 === Fixing Occupancy Charges for Tenant Flats ===');
     
-    const bills = getBillsData();
-    const flats = getFlatsData();
+    const bills = await getBillsData();
+    const flats = await getFlatsData();
     const config = getBillConfiguration();
     
     let updatedCount = 0;
@@ -16159,37 +16211,57 @@ window.fixOccupancyChargesForTenantFlats = function() {
     return updatedCount;
 };
 
-// Auto-run on page load to update existing bills
-setTimeout(() => {
-    const bills = getBillsData();
-    const flats = getFlatsData();
+// Auto-run on page load to update existing bills - TEMPORARILY DISABLED
+// setTimeout(async () => {
+//     try {
+//         console.log('🔄 Starting auto-update process...');
+//         const bills = await getBillsData();
+//         const flats = await getFlatsData();
+        
+//         console.log('📊 Bills data received:', typeof bills, Array.isArray(bills), bills?.length || 0);
+//         console.log('🏠 Flats data received:', typeof flats, Array.isArray(flats), flats?.length || 0);
+        
+//         // Check if bills is an array before using array methods
+//         if (!Array.isArray(bills)) {
+//             console.log('❌ Bills data is not an array:', bills);
+//             return;
+//         }
+        
+//         if (!Array.isArray(flats)) {
+//             console.log('❌ Flats data is not an array:', flats);
+//             return;
+//         }
     
-    // Check for member outstanding updates
-    const needsMemberOutstandingUpdate = bills.some(bill => bill.memberOutstanding === undefined || bill.memberOutstanding === null);
-    
-    // Check for tenant flats without occupancy charges
-    const needsOccupancyUpdate = bills.some(bill => {
-        const flat = flats.find(f => f.flatNumber === bill.flatNumber);
-        return flat && flat.status === 'tenant' && (!bill.occupancyCharges || bill.occupancyCharges === 0);
-    });
-    
-    if (needsMemberOutstandingUpdate) {
-        console.log('🔄 Auto-updating bills with member outstanding...');
-        updateBillsWithMemberOutstanding();
-    }
-    
-    if (needsOccupancyUpdate) {
-        console.log('🔄 Auto-updating tenant flats with occupancy charges...');
-        fixOccupancyChargesForTenantFlats();
-    }
-}, 2000);
+//         // Check for member outstanding updates
+//         const needsMemberOutstandingUpdate = bills.length > 0 && bills.some(bill => bill.memberOutstanding === undefined || bill.memberOutstanding === null);
+        
+//         // Check for tenant flats without occupancy charges
+//         const needsOccupancyUpdate = bills.length > 0 && bills.some(bill => {
+//             const flat = flats.find(f => f.flatNumber === bill.flatNumber);
+//             return flat && flat.status === 'tenant' && (!bill.occupancyCharges || bill.occupancyCharges === 0);
+//         });
+        
+//         if (needsMemberOutstandingUpdate) {
+//             console.log('🔄 Auto-updating bills with member outstanding...');
+//             updateBillsWithMemberOutstanding();
+//         }
+        
+//         if (needsOccupancyUpdate) {
+//             console.log('🔄 Auto-updating tenant flats with occupancy charges...');
+//             fixOccupancyChargesForTenantFlats();
+//         }
+        
+//     } catch (error) {
+//         console.error('❌ Error in auto-update process:', error);
+//     }
+// }, 2000);
 
 // Function to fix bill status and balance display after payments
-window.fixBillStatusAndBalance = function() {
+window.fixBillStatusAndBalance = async function() {
     console.log('\n🔧 === Fixing Bill Status and Balance Display ===');
     
-    const bills = getBillsData();
-    const payments = getPaymentsData();
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
     let updatedCount = 0;
     
     bills.forEach(bill => {
