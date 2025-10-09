@@ -667,13 +667,13 @@ input[required]:valid, select[required]:valid {
 .login-card {
     background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.95));
     backdrop-filter: blur(15px);
-    padding: 30px;
-    border-radius: 15px;
-    box-shadow: 0 25px 50px rgba(102, 126, 234, 0.15), 0 0 0 1px rgba(102, 126, 234, 0.1);
+    padding: 16px;
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(102, 126, 234, 0.1), 0 0 0 1px rgba(102, 126, 234, 0.06);
     width: 100%;
-    max-width: 380px;
+    max-width: 340px;
     animation: slideUp 0.5s ease-out;
-    border: 1px solid rgba(102, 126, 234, 0.2);
+    border: 1px solid rgba(102, 126, 234, 0.12);
     margin: auto;
     position: relative;
     transition: all 0.3s ease;
@@ -697,7 +697,7 @@ input[required]:valid, select[required]:valid {
 
 .login-header {
     text-align: center;
-    margin-bottom: 25px;
+    margin-bottom: 12px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -705,14 +705,14 @@ input[required]:valid, select[required]:valid {
 }
 
 .logo-container {
-    margin-bottom: 10px;
+    margin-bottom: 6px;
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
 .logo-container i {
-    font-size: 3.5rem;
+    font-size: 2.4rem;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -721,8 +721,8 @@ input[required]:valid, select[required]:valid {
 }
 
 .society-logo {
-    width: 100px;
-    height: 100px;
+    width: 70px;
+    height: 70px;
     object-fit: contain;
     background: transparent;
     border: none;
@@ -777,13 +777,13 @@ input[required]:valid, select[required]:valid {
 }
 
 .society-name {
-    font-size: 1.6rem;
+    font-size: 1.3rem;
     font-weight: 700;
     color: #2c3e50;
-    margin: 10px 0 5px 0;
+    margin: 3px 0 2px 0;
     text-shadow: 0 1px 2px rgba(0,0,0,0.1);
     letter-spacing: 0.3px;
-    line-height: 1.2;
+    line-height: 1.1;
     text-align: center;
     max-width: 100%;
     word-wrap: break-word;
@@ -799,30 +799,30 @@ input[required]:valid, select[required]:valid {
 }
 
 .system-title {
-    font-size: 1.1rem;
+    font-size: 0.95rem;
     font-weight: 500;
     color: #667eea;
-    margin: 0 0 10px 0;
+    margin: 0 0 6px 0;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
 
 .tagline {
     color: #666;
-    font-size: 0.9rem;
-    margin-bottom: 15px;
+    font-size: 0.8rem;
+    margin-bottom: 8px;
     font-style: italic;
 }
 
 
 .login-form .form-group {
-    margin-bottom: 18px;
+    margin-bottom: 12px;
     width: 100%;
 }
 
 .login-form label {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     color: #555;
     font-weight: 500;
     text-align: left;
@@ -2886,8 +2886,8 @@ mark {
     }
     
     .login-card {
-        padding: 20px 15px;
-        border-radius: 10px;
+        padding: 12px 10px;
+        border-radius: 8px;
     }
     
     .society-name {
@@ -4141,61 +4141,58 @@ mark {
     100% { transform: rotate(360deg); }
 }
 
-/* Reports Section Styling */
+/* Simple Reports Section Styling */
 .reports-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
 }
 
 .report-card {
     background: white;
-    border-radius: 8px;
-    padding: 25px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    border: 1px solid #e9ecef;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    text-align: center;
+    border-radius: 5px;
+    padding: 20px;
+    border: 1px solid #ddd;
+    text-align: left;
 }
 
 .report-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    background: #f8f9fa;
 }
 
 .report-card[data-report="collection"] {
-    border-left: 4px solid #28a745;
+    border-left: 3px solid #28a745;
 }
 
 .report-card[data-report="dues"] {
-    border-left: 4px solid #dc3545;
+    border-left: 3px solid #dc3545;
 }
 
 .report-card[data-report="expenses"] {
-    border-left: 4px solid #fd7e14;
+    border-left: 3px solid #fd7e14;
 }
 
 .report-card[data-report="bank"] {
-    border-left: 4px solid #6f42c1;
+    border-left: 3px solid #6f42c1;
 }
 
 .report-card[data-report="financial"] {
-    border-left: 4px solid #20c997;
+    border-left: 3px solid #20c997;
 }
 
 .report-card[data-report="audit"] {
-    border-left: 4px solid #6c757d;
+    border-left: 3px solid #6c757d;
 }
 
 .report-card[data-report="balance"] {
-    border-left: 4px solid #17a2b8;
+    border-left: 3px solid #17a2b8;
 }
 
 .report-card i {
-    font-size: 2.5rem;
-    margin-bottom: 15px;
-    color: #667eea;
+    font-size: 1.8rem;
+    margin-bottom: 10px;
+    color: #666;
 }
 
 .report-card[data-report="collection"] i { color: #28a745; }
@@ -4207,67 +4204,72 @@ mark {
 .report-card[data-report="balance"] i { color: #17a2b8; }
 
 .report-card h3 {
-    color: #2c3e50;
-    margin-bottom: 10px;
-    font-size: 1.2rem;
-    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+    font-size: 1.1rem;
+    font-weight: 500;
 }
 
 .report-card p {
-    color: #6c757d;
-    margin-bottom: 20px;
-    font-size: 0.9rem;
-    line-height: 1.4;
+    color: #666;
+    margin-bottom: 15px;
+    font-size: 0.85rem;
+    line-height: 1.3;
 }
 
 .report-actions {
     display: flex;
-    gap: 10px;
-    justify-content: center;
+    gap: 8px;
     flex-wrap: wrap;
 }
 
 .report-actions .btn {
-    padding: 8px 16px;
-    font-size: 0.85rem;
-    border-radius: 5px;
-    font-weight: 500;
-    transition: all 0.2s ease;
-    border: none;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    border-radius: 3px;
+    cursor: pointer;
+    border: 1px solid #ddd;
+    background: white;
+    color: #333;
+}
+
+.report-actions .btn:hover {
+    background: #f0f0f0;
 }
 
 .report-actions .btn-primary {
-    background: #667eea;
+    background: #007bff;
     color: white;
+    border-color: #007bff;
 }
 
 .report-actions .btn-primary:hover {
-    background: #5a6fd8;
+    background: #0056b3;
 }
 
 .report-actions .btn-success {
     background: #28a745;
     color: white;
+    border-color: #28a745;
 }
 
 .report-actions .btn-success:hover {
-    background: #218838;
+    background: #1e7e34;
 }
 
-/* Report Display Area */
+/* Simple Report Display Area */
 .report-display {
     background: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    margin-top: 30px;
-    overflow: hidden;
-    border: 1px solid #e9ecef;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+    margin-top: 20px;
 }
 
 .report-header {
-    background: #667eea;
-    color: white;
-    padding: 20px;
+    background: #f8f9fa;
+    color: #333;
+    padding: 15px 20px;
+    border-bottom: 1px solid #ddd;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -4275,32 +4277,32 @@ mark {
 
 .report-header h3 {
     margin: 0;
-    font-size: 1.3rem;
-    font-weight: 600;
+    font-size: 1.2rem;
+    font-weight: 500;
 }
 
 .report-controls {
     display: flex;
-    gap: 10px;
+    gap: 8px;
 }
 
 .report-controls .btn {
-    padding: 6px 12px;
+    padding: 5px 10px;
     font-size: 0.8rem;
-    border-radius: 4px;
-    font-weight: 500;
-    transition: all 0.2s ease;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
+    border-radius: 3px;
+    cursor: pointer;
+    border: 1px solid #ddd;
+    background: white;
+    color: #333;
 }
 
 .report-controls .btn:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: #f0f0f0;
 }
 
 .report-controls .btn-danger {
     background: #dc3545;
+    color: white;
     border-color: #dc3545;
 }
 
@@ -4309,65 +4311,61 @@ mark {
 }
 
 .report-content {
-    padding: 30px;
-    max-height: 600px;
+    padding: 20px;
+    max-height: 500px;
     overflow-y: auto;
     background: white;
 }
 
-/* Report Tables */
+/* Simple Report Tables */
 .report-table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
     background: white;
-    border-radius: 5px;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid #ddd;
 }
 
 .report-table th,
 .report-table td {
-    padding: 12px 15px;
+    padding: 8px 12px;
     text-align: left;
-    border-bottom: 1px solid #dee2e6;
+    border-bottom: 1px solid #eee;
 }
 
 .report-table th {
-    background: #f8f9fa;
-    font-weight: 600;
-    color: #495057;
+    background: #f5f5f5;
+    font-weight: 500;
+    color: #333;
     font-size: 0.9rem;
 }
 
 .report-table tbody tr:hover {
-    background: #f8f9fa;
+    background: #f9f9f9;
 }
 
 .report-table tbody tr:nth-child(even) {
-    background: rgba(248, 249, 250, 0.5);
+    background: #fafafa;
 }
 
-/* Report Summary Cards */
+/* Simple Report Summary Cards */
 .report-summary {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
 }
 
 .report-summary-card {
     background: white;
-    padding: 20px;
-    border-radius: 8px;
+    padding: 15px;
+    border-radius: 5px;
     text-align: center;
-    border: 1px solid #e9ecef;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s ease;
+    border: 1px solid #ddd;
 }
 
 .report-summary-card {
-    border-left: 4px solid #28a745;
+    border-left: 3px solid #28a745;
 }
 
 .report-summary-card.expense {
@@ -4378,22 +4376,17 @@ mark {
     border-left-color: #17a2b8;
 }
 
-.report-summary-card:hover {
-    transform: translateY(-2px);
-}
-
 .report-summary-card h4 {
-    color: #6c757d;
-    font-size: 0.9rem;
-    margin-bottom: 10px;
-    text-transform: uppercase;
-    font-weight: 600;
+    color: #666;
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+    font-weight: 500;
 }
 
 .report-summary-card .amount {
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: #2c3e50;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: #333;
 }
 
 /* Simple Bill Configuration Styles */

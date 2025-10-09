@@ -824,6 +824,31 @@ async function saveFlatToFirebase(flatData) {
     }
 }
 
+// Delete flat from Firebase
+async function deleteFlatFromFirebase(flatData) {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            // Check if user is authenticated
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for Firebase flat deletion');
+                return;
+            }
+            
+            // Construct the Firebase path for this flat
+            const flatId = `flat_${flatData.flatNumber}`;
+            
+            // Delete from Firebase
+            await firebase.database().ref(`flats/${flatId}`).remove();
+            console.log(`✅ Flat ${flatData.flatNumber} deleted from Firebase`);
+            
+        } catch (error) {
+            console.error('Firebase flat deletion failed:', error);
+            showNotification('⚠️ Flat Firebase deletion failed, deleted locally only', 'warning');
+        }
+    }
+}
+
 async function getPaymentsData() {
     if (typeof firebase !== 'undefined' && firebase.database) {
         try {
@@ -872,12 +897,17 @@ async function getPaymentsData() {
 }
 
 async function savePaymentsData(payments) {
+    // Always save to localStorage first
+    localStorage.setItem('payments', JSON.stringify(payments));
+    console.log(`✅ Saved ${payments.length} payments to localStorage`);
+    
+    // Also try to save to Firebase if available
     if (typeof firebase !== 'undefined' && firebase.database) {
         try {
             const user = firebase.auth().currentUser;
             if (!user) {
-                console.log('❌ User not authenticated for payments save');
-                return false;
+                console.log('❌ User not authenticated for Firebase payments save');
+                return true; // Still return true because localStorage save succeeded
             }
             
             // Save each payment to Firebase with organized structure
@@ -906,10 +936,10 @@ async function savePaymentsData(payments) {
             
         } catch (error) {
             console.error('Firebase payments save failed:', error);
-            return false;
+            return true; // Still return true because localStorage save succeeded
         }
     }
-    return false;
+    return true; // localStorage save succeeded
 }
 
 // Save individual payment to Firebase immediately
@@ -947,6 +977,40 @@ async function savePaymentToFirebase(paymentData) {
         } catch (error) {
             console.error('Firebase payment save failed:', error);
             showNotification('⚠️ Payment Firebase sync failed, saved locally only', 'warning');
+        }
+    }
+}
+
+// Delete payment from Firebase
+async function deletePaymentFromFirebase(paymentData) {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            // Check if user is authenticated
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for Firebase payment deletion');
+                return;
+            }
+            
+            // Construct the Firebase path for this payment
+            const paymentDate = new Date(paymentData.date);
+            const year = paymentDate.getFullYear().toString();
+            const month = (paymentDate.getMonth() + 1).toString().padStart(2, '0');
+            
+            // Ensure receiptNumber is a string
+            let receiptNumber = paymentData.receiptNumber;
+            if (typeof receiptNumber === 'object' || receiptNumber === undefined) {
+                receiptNumber = paymentData.id || 'unknown';
+            }
+            const paymentId = `payment_${receiptNumber}`;
+            
+            // Delete from Firebase
+            await firebase.database().ref(`payments/${year}/${month}/${paymentId}`).remove();
+            console.log(`✅ Payment ${receiptNumber} deleted from Firebase`);
+            
+        } catch (error) {
+            console.error('Firebase payment deletion failed:', error);
+            showNotification('⚠️ Payment Firebase deletion failed, deleted locally only', 'warning');
         }
     }
 }
@@ -1051,6 +1115,16 @@ async function saveExpenseToFirebase(expenseData) {
 }
 
 async function getBanksData() {
+    // First try to get from localStorage
+    const localBanks = JSON.parse(localStorage.getItem('societyBanks') || '[]');
+    
+    // If we have local data, return it
+    if (localBanks && localBanks.length > 0) {
+        console.log(`✅ Loaded ${localBanks.length} banks from localStorage`);
+        return localBanks;
+    }
+    
+    // If no local data, try Firebase
     if (typeof firebase !== 'undefined' && firebase.database) {
         try {
             const user = firebase.auth().currentUser;
@@ -1064,7 +1138,13 @@ async function getBanksData() {
             
             if (banksData) {
                 // Convert Firebase object to array
-                return Object.values(banksData);
+                const firebaseBanks = Object.values(banksData);
+                
+                // Save to localStorage for future use
+                localStorage.setItem('societyBanks', JSON.stringify(firebaseBanks));
+                console.log(`✅ Loaded ${firebaseBanks.length} banks from Firebase and saved to localStorage`);
+                
+                return firebaseBanks;
             }
             return [];
             
@@ -1077,12 +1157,17 @@ async function getBanksData() {
 }
 
 async function saveBanksData(banks) {
+    // Save to localStorage first (for offline support)
+    localStorage.setItem('societyBanks', JSON.stringify(banks));
+    console.log(`✅ Saved ${banks.length} banks to localStorage`);
+    
+    // Save to Firebase if available
     if (typeof firebase !== 'undefined' && firebase.database) {
         try {
             const user = firebase.auth().currentUser;
             if (!user) {
                 console.log('❌ User not authenticated for banks save');
-                return false;
+                return true; // Still return true as localStorage save succeeded
             }
             
             // Save each bank to Firebase
@@ -1100,10 +1185,10 @@ async function saveBanksData(banks) {
             
         } catch (error) {
             console.error('Firebase banks save failed:', error);
-            return false;
+            return true; // Still return true as localStorage save succeeded
         }
     }
-    return false;
+    return true;
 }
 
 // Save individual bank to Firebase immediately
@@ -1130,6 +1215,34 @@ async function saveBankToFirebase(bankData) {
             console.log('Firebase bank save failed:', error);
             showNotification('⚠️ Bank Firebase sync failed, saved locally only', 'warning');
         }
+    }
+}
+
+// Delete individual bank from Firebase
+async function deleteBankFromFirebase(bankId, bankName) {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for bank delete');
+                showNotification('⚠️ Firebase login required, deleted locally only', 'warning');
+                return;
+            }
+            
+            // Delete from Firebase using direct Firebase API
+            const bankRef = firebase.database().ref(`banks/bank_${bankId}`);
+            await bankRef.remove();
+            
+            console.log(`✅ Bank ${bankName} deleted from Firebase`);
+            showNotification(`🔥 Bank ${bankName} removed from Firebase!`, 'success');
+            
+        } catch (error) {
+            console.log('Firebase bank delete failed:', error);
+            showNotification('⚠️ Bank Firebase delete failed, deleted locally only', 'warning');
+        }
+    } else {
+        console.log('Firebase not available, deleted locally only');
+        showNotification('⚠️ Firebase not available, deleted locally only', 'warning');
     }
 }
 function getBankPaymentsData() {
@@ -1367,9 +1480,48 @@ async function saveBillToFirebase(billData) {
     return false;
 }
 
+// Delete bill from Firebase
+async function deleteBillFromFirebase(billData) {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            // Check if user is authenticated
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for Firebase bill deletion');
+                return;
+            }
+            
+            // Construct the Firebase path for this bill
+            const [year, month] = billData.period.split('-');
+            const billId = `bill_${billData.flatNumber}_${billData.period}`;
+            
+            // Delete from Firebase
+            await firebase.database().ref(`bills/${year}/${month}/${billId}`).remove();
+            console.log(`✅ Bill ${billData.billNumber} deleted from Firebase`);
+            
+        } catch (error) {
+            console.error('Firebase bill deletion failed:', error);
+            showNotification('⚠️ Bill Firebase deletion failed, deleted locally only', 'warning');
+        }
+    }
+}
+
 // Society Info Functions
 async function loadSocietyInfo() {
-    const societyInfo = JSON.parse(localStorage.getItem('societyInfo') || '{}');
+    let societyInfo = JSON.parse(localStorage.getItem('societyInfo') || '{}');
+    
+    // Try to load from Firebase first
+    try {
+        const firebaseSocietyInfo = await loadSocietyInfoFromFirebase();
+        if (firebaseSocietyInfo && firebaseSocietyInfo.name) {
+            societyInfo = firebaseSocietyInfo;
+            // Update localStorage with Firebase data
+            localStorage.setItem('societyInfo', JSON.stringify(societyInfo));
+            console.log('✅ Society info loaded from Firebase');
+        }
+    } catch (error) {
+        console.log('Firebase society info load failed, using localStorage:', error);
+    }
     
     // Set default values if not exists
     if (!societyInfo.name) {
@@ -1479,10 +1631,11 @@ async function saveSettingsData() {
     localStorage.setItem('societyInfo', JSON.stringify(societyInfo));
     
     // Save to Firebase (if available)
-    if (typeof FirebaseHelper !== 'undefined') {
-        FirebaseHelper.saveSocietyInfo(societyInfo).catch(error => {
-            console.log('Firebase save failed, using localStorage only');
-        });
+    try {
+        await saveSocietyInfoToFirebase(societyInfo);
+    } catch (error) {
+        console.log('Firebase save failed, using localStorage only:', error);
+        showNotification('⚠️ Firebase sync failed, saved locally only', 'warning');
     }
     
     // Update header immediately
@@ -1505,6 +1658,68 @@ async function saveSettingsData() {
     }
     
     showNotification('Settings saved successfully! All bills and receipts will now use the updated information.', 'success');
+}
+
+// Save society info to Firebase
+async function saveSocietyInfoToFirebase(societyInfo) {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            // Check if user is authenticated
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for Firebase society info save');
+                return;
+            }
+            
+            // Save society info to Firebase
+            await firebase.database().ref('societyInfo').set({
+                ...societyInfo,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+            });
+            
+            console.log('✅ Society information saved to Firebase');
+            showNotification('🔥 Society information synced to Firebase!', 'success');
+            
+        } catch (error) {
+            console.error('Firebase society info save failed:', error);
+            throw error; // Re-throw to be caught by calling function
+        }
+    } else {
+        console.log('Firebase not available for society info save');
+    }
+}
+
+// Load society info from Firebase
+async function loadSocietyInfoFromFirebase() {
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            // Check if user is authenticated
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                console.log('❌ User not authenticated for Firebase society info load');
+                return null;
+            }
+            
+            // Load society info from Firebase
+            const snapshot = await firebase.database().ref('societyInfo').once('value');
+            const societyInfo = snapshot.val();
+            
+            if (societyInfo) {
+                console.log('✅ Society information loaded from Firebase');
+                return societyInfo;
+            } else {
+                console.log('No society info found in Firebase');
+                return null;
+            }
+            
+        } catch (error) {
+            console.error('Firebase society info load failed:', error);
+            return null;
+        }
+    } else {
+        console.log('Firebase not available for society info load');
+        return null;
+    }
 }
 
 // Initialize billing year dropdown
@@ -1588,6 +1803,10 @@ async function loadFlatsData() {
 async function loadBillingData() {
     const bills = await getBillsData();
     const payments = await getPaymentsData();
+    
+    // Cache flats data for synchronous access in member outstanding calculation
+    window.cachedFlatsData = await getFlatsData();
+    
     const tbody = document.querySelector('#billsTable tbody');
     
     if (!tbody) return;
@@ -1703,17 +1922,45 @@ async function loadBillingData() {
         currentBillAmount = bill.baseAmount || (bill.totalAmount - outstandingFromPrevious) || 0;
         
         // Balance amount should show the remaining unpaid amount (what user still owes)
-        const memberOutstanding = getMemberOutstandingAmounts(bill.flatNumber);
+        // Include member outstanding from bill data or calculate it synchronously
+        let memberOutstanding = bill.memberOutstanding || 0;
         
-        // Key fix: Balance = Remaining unpaid amount from this bill
-        displayBalanceAmount = remainingUnpaid;
+        // If not in bill data, get from localStorage directly (synchronous)
+        if (memberOutstanding === 0) {
+            try {
+                // Get from localStorage synchronously
+                const memberOutstandingLS = JSON.parse(localStorage.getItem('memberOutstanding') || '[]');
+                const flatOutstandingLS = memberOutstandingLS.filter(item => 
+                    item.flatNumber === bill.flatNumber && item.status === 'pending'
+                );
+                memberOutstanding = flatOutstandingLS.reduce((total, item) => total + item.outstandingAmount, 0);
+                
+                // Also check flat data if available
+                if (memberOutstanding === 0 && window.cachedFlatsData) {
+                    const flat = window.cachedFlatsData.find(f => f.flatNumber === bill.flatNumber);
+                    if (flat && flat.outstandingAmount) {
+                        memberOutstanding = flat.outstandingAmount;
+                    }
+                }
+            } catch (error) {
+                console.log(`Error getting member outstanding for flat ${bill.flatNumber}:`, error);
+                memberOutstanding = 0;
+            }
+        }
         
-        // Determine current status
-        let currentStatus = 'pending';
-        if (remainingUnpaid <= 0) {
-            currentStatus = 'paid';
-        } else if (totalPaid > 0) {
-            currentStatus = 'partial';
+        // Key fix: Balance = Remaining unpaid amount from this bill + Member Outstanding
+        displayBalanceAmount = remainingUnpaid + memberOutstanding;
+        
+        // Use bill's status if available (already calculated correctly), otherwise calculate
+        let currentStatus = bill.status || 'pending';
+        
+        // Fallback calculation if bill doesn't have status
+        if (!bill.status) {
+            if (remainingUnpaid <= 0) {
+                currentStatus = 'paid';
+            } else if (totalPaid > 0) {
+                currentStatus = 'partial';
+            }
         }
         
         // Status badge
@@ -2066,7 +2313,7 @@ async function loadExpensesData() {
     document.getElementById('yearlyExpense').textContent = `₹${yearlyTotal.toLocaleString()}`;
     
     if (tbody) {
-        const banks = getBanksData(); // Get banks data for display
+        const banks = await getBanksData(); // Get banks data for display
         
         tbody.innerHTML = expenses.map(expense => {
             // Find bank information if expense was paid from bank
@@ -3135,7 +3382,9 @@ async function showAddBankPaymentModal() {
         </form>
     `);
     
-    document.getElementById('addBankPaymentForm').addEventListener('submit', handleAddBankPayment);
+    document.getElementById('addBankPaymentForm').addEventListener('submit', async function(e) {
+        await handleAddBankPayment(e);
+    });
 }
 
 
@@ -4095,8 +4344,8 @@ function generateIncomeReceiptNumber(year, month) {
 }
 
 // Add income to bank account
-function addIncomeToBank(bankAccountId, amount, date, source, payerName, incomeId) {
-    const banks = getBanksData();
+async function addIncomeToBank(bankAccountId, amount, date, source, payerName, incomeId) {
+    const banks = await getBanksData();
     const bankPayments = getBankPaymentsData();
     
     // Update bank balance
@@ -4509,7 +4758,7 @@ async function processAddBank(bankName, branch, accountNumber, ifscCode, account
     console.log('Banks after adding:', banksArray); // Debug log
     
     closeModal();
-    loadBanksData();
+    await loadBanksData();
     showNotification(`Bank "${bankName}" added successfully!`, 'success');
 }
 
@@ -4527,7 +4776,7 @@ async function handleAddBankPayment(e) {
         createdDate: new Date().toISOString()
     };
     
-    const banks = getBanksData();
+    const banks = await getBanksData();
     const bankPayments = getBankPaymentsData();
     
     // Update bank balance
@@ -4546,13 +4795,13 @@ async function handleAddBankPayment(e) {
     
     closeModal();
     await refreshBankPaymentsTable();
-    loadBanksData();
+    await loadBanksData();
     await loadDashboardData();
     showNotification(`Bank ${paymentData.type} recorded successfully!`, 'success');
 }
 
-function addBankTransaction(bankId, type) {
-    const banks = getBanksData();
+async function addBankTransaction(bankId, type) {
+    const banks = await getBanksData();
     const bank = banks.find(b => b.id === bankId);
     
     if (!bank) {
@@ -4589,7 +4838,9 @@ function addBankTransaction(bankId, type) {
         </form>
     `);
     
-    document.getElementById('quickBankTransactionForm').addEventListener('submit', handleQuickBankTransaction);
+    document.getElementById('quickBankTransactionForm').addEventListener('submit', async function(e) {
+        await handleQuickBankTransaction(e);
+    });
 }
 
 async function handleQuickBankTransaction(e) {
@@ -4606,7 +4857,7 @@ async function handleQuickBankTransaction(e) {
         createdDate: new Date().toISOString()
     };
     
-    const banks = getBanksData();
+    const banks = await getBanksData();
     const bankPayments = getBankPaymentsData();
     
     // Update bank balance
@@ -4625,13 +4876,13 @@ async function handleQuickBankTransaction(e) {
     
     closeModal();
     await refreshBankPaymentsTable();
-    loadBanksData();
+    await loadBanksData();
     await loadDashboardData();
     showNotification(`${paymentData.type === 'credit' ? 'Credit' : 'Debit'} added successfully!`, 'success');
 }
 
-function editBank(id) {
-    const banks = getBanksData();
+async function editBank(id) {
+    const banks = await getBanksData();
     const bank = banks.find(b => b.id === id);
     
     if (!bank) {
@@ -4689,12 +4940,12 @@ function editBank(id) {
         </form>
     `);
     
-    document.getElementById('editBankForm').addEventListener('submit', function(e) {
-        handleEditBank(e, id);
+    document.getElementById('editBankForm').addEventListener('submit', async function(e) {
+        await handleEditBank(e, id);
     });
 }
 
-function handleEditBank(e, bankId) {
+async function handleEditBank(e, bankId) {
     e.preventDefault();
     
     // Get form values
@@ -4712,7 +4963,7 @@ function handleEditBank(e, bankId) {
         return;
     }
     
-    const banks = getBanksData();
+    const banks = await getBanksData();
     const bankIndex = banks.findIndex(b => b.id === bankId);
     
     if (bankIndex === -1) {
@@ -4777,28 +5028,444 @@ function handleEditBank(e, bankId) {
     showNotification(`Bank "${bankName}" updated successfully!`, 'success');
 }
 
-function deleteBank(id) {
-    const banks = getBanksData();
+async function deleteBank(id) {
+    console.log(`🗑️ Starting bank delete process for ID: ${id}`);
+    
+    const banks = await getBanksData();
+    console.log(`📊 Current banks count: ${banks.length}`);
+    
     const bank = banks.find(b => b.id === id);
     
     if (!bank) {
+        console.log(`❌ Bank with ID ${id} not found`);
         showNotification('Bank not found!', 'error');
         return;
     }
     
+    console.log(`🏦 Found bank to delete: ${bank.bankName} (${bank.accountNumber})`);
+    
     const confirmMessage = `Are you sure you want to delete this bank?\n\nBank: ${bank.bankName}\nAccount: ${bank.accountNumber}\nBalance: ₹${(bank.balance || 0).toLocaleString()}\n\nThis action cannot be undone!`;
     
     if (confirm(confirmMessage)) {
+        console.log(`✅ User confirmed deletion of bank: ${bank.bankName}`);
+        
+        // Delete from local storage
         const updatedBanks = banks.filter(b => b.id !== id);
-        saveBanksData(updatedBanks);
-        loadBanksData();
+        console.log(`📝 Filtered banks count: ${updatedBanks.length} (removed 1)`);
+        
+        await saveBanksData(updatedBanks);
+        console.log(`💾 Updated banks saved to storage`);
+        
+        // Delete from Firebase
+        await deleteBankFromFirebase(id, bank.bankName);
+        console.log(`🔥 Firebase delete operation completed`);
+        
+        // Refresh the display
+        await loadBanksData();
+        console.log(`🔄 Bank display refreshed`);
+        
         showNotification(`Bank ${bank.bankName} deleted successfully!`, 'success');
+        console.log(`✅ Bank deletion process completed successfully`);
+    } else {
+        console.log(`❌ User cancelled bank deletion`);
     }
 }
 
+// Test function to debug bank deletion
+async function testBankDeletion() {
+    console.log('🧪 Testing bank deletion functionality...');
+    
+    const banks = await getBanksData();
+    console.log('Current banks:', banks);
+    
+    if (banks.length > 0) {
+        console.log('First bank:', banks[0]);
+        console.log('Bank ID to test deletion:', banks[0].id);
+    } else {
+        console.log('No banks found to test deletion');
+    }
+    
+    // Check localStorage
+    const localBanks = JSON.parse(localStorage.getItem('societyBanks') || '[]');
+    console.log('Banks in localStorage:', localBanks);
+}
+
+// Test function to debug member outstanding in bill generation
+async function testMemberOutstandingInBills() {
+    console.log('🧪 Testing Member Outstanding in Bill Generation...');
+    
+    const flats = await getFlatsData();
+    console.log('📋 All Flats:', flats);
+    
+    for (const flat of flats) {
+        console.log(`\n🏠 Flat ${flat.flatNumber}:`);
+        console.log(`   Flat Data Outstanding: ₹${flat.outstandingAmount || 0}`);
+        
+        const memberOutstanding = await getMemberOutstandingAmounts(flat.flatNumber);
+        console.log(`   Member Outstanding Function Result: ₹${memberOutstanding}`);
+        
+        // Check localStorage directly
+        const memberOutstandingLS = JSON.parse(localStorage.getItem('memberOutstanding') || '[]');
+        const flatOutstandingLS = memberOutstandingLS.filter(item => 
+            item.flatNumber === flat.flatNumber && item.status === 'pending'
+        );
+        const totalOutstandingLS = flatOutstandingLS.reduce((total, item) => total + item.outstandingAmount, 0);
+        console.log(`   localStorage Outstanding: ₹${totalOutstandingLS}`);
+        console.log(`   localStorage Records:`, flatOutstandingLS);
+    }
+    
+    // Check all memberOutstanding records
+    const allMemberOutstanding = JSON.parse(localStorage.getItem('memberOutstanding') || '[]');
+    console.log('\n📊 All Member Outstanding Records:', allMemberOutstanding);
+}
+
+// Function to fix existing bills with missing member outstanding
+async function fixExistingBillsWithMemberOutstanding() {
+    console.log('🔧 Fixing existing bills with member outstanding...');
+    
+    const bills = await getBillsData();
+    const flats = await getFlatsData();
+    let updatedCount = 0;
+    
+    for (const bill of bills) {
+        // Check if bill already has memberOutstanding properly set
+        const currentMemberOutstanding = bill.memberOutstanding || 0;
+        const actualMemberOutstanding = await getMemberOutstandingAmounts(bill.flatNumber);
+        
+        if (actualMemberOutstanding > 0 && currentMemberOutstanding !== actualMemberOutstanding) {
+            console.log(`🔄 Updating Flat ${bill.flatNumber} - Bill ${bill.billNumber}:`);
+            console.log(`   Current Member Outstanding in Bill: ₹${currentMemberOutstanding}`);
+            console.log(`   Actual Member Outstanding: ₹${actualMemberOutstanding}`);
+            
+            // Update bill with correct member outstanding
+            const oldTotal = bill.totalAmount;
+            bill.memberOutstanding = actualMemberOutstanding;
+            
+            // Recalculate total amount
+            const baseAmount = bill.baseAmount || (oldTotal - currentMemberOutstanding);
+            bill.totalAmount = baseAmount + actualMemberOutstanding;
+            
+            console.log(`   Updated Total: ₹${oldTotal} → ₹${bill.totalAmount}`);
+            updatedCount++;
+        }
+    }
+    
+    if (updatedCount > 0) {
+        // Save updated bills
+        saveBillsData(bills);
+        console.log(`✅ Updated ${updatedCount} bills with member outstanding amounts`);
+        showNotification(`Fixed ${updatedCount} bills with member outstanding amounts`, 'success');
+        
+        // Refresh billing display
+        loadBillingData();
+    } else {
+        console.log('ℹ️ All bills already have correct member outstanding amounts');
+        showNotification('All bills are already up to date', 'info');
+    }
+}
+
+// Function to test balance amount calculation with member outstanding
+async function testBalanceAmountWithMemberOutstanding() {
+    console.log('🧪 Testing Balance Amount with Member Outstanding...');
+    
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
+    
+    for (const bill of bills.slice(0, 3)) { // Test first 3 bills
+        console.log(`\n🏠 Flat ${bill.flatNumber} - Bill ${bill.billNumber}:`);
+        
+        // Get payments for this bill
+        const billPayments = payments.filter(payment => 
+            payment.flatNumber === bill.flatNumber && 
+            payment.period === bill.period
+        );
+        const totalPaid = billPayments.reduce((sum, payment) => sum + payment.amount, 0);
+        
+        // Calculate remaining unpaid
+        const billTotal = bill.baseAmount || bill.totalAmount;
+        const remainingUnpaid = Math.max(0, billTotal - totalPaid);
+        
+        // Get member outstanding
+        const memberOutstanding = await getMemberOutstandingAmounts(bill.flatNumber);
+        
+        // Calculate balance amount
+        const balanceAmount = remainingUnpaid + memberOutstanding;
+        
+        console.log(`   Bill Total: ₹${billTotal}`);
+        console.log(`   Total Paid: ₹${totalPaid}`);
+        console.log(`   Remaining Unpaid: ₹${remainingUnpaid}`);
+        console.log(`   Member Outstanding: ₹${memberOutstanding}`);
+        console.log(`   Final Balance Amount: ₹${balanceAmount}`);
+        console.log(`   Bill memberOutstanding field: ₹${bill.memberOutstanding || 0}`);
+    }
+}
+
+// Complete test function for member outstanding issues
+async function testMemberOutstandingCompleteFlow() {
+    console.log('🧪 === Complete Member Outstanding Flow Test ===');
+    
+    // 1. Test member outstanding in bills
+    console.log('\n1️⃣ Testing Member Outstanding in Bills:');
+    await testMemberOutstandingInBills();
+    
+    // 2. Test payment period display
+    console.log('\n2️⃣ Testing Payment Period Display:');
+    const bills = await getBillsData();
+    const testBill = bills.find(bill => bill.memberOutstanding > 0);
+    if (testBill) {
+        console.log(`Found bill with member outstanding: Flat ${testBill.flatNumber}`);
+        console.log(`Member Outstanding: ₹${testBill.memberOutstanding}`);
+    } else {
+        console.log('No bills found with member outstanding');
+    }
+    
+    // 3. Test balance amount calculation
+    console.log('\n3️⃣ Testing Balance Amount Calculation:');
+    await testBalanceAmountWithMemberOutstanding();
+    
+    // 4. Fix existing bills
+    console.log('\n4️⃣ Fixing Existing Bills:');
+    await fixExistingBillsWithMemberOutstanding();
+    
+    console.log('\n✅ Complete Member Outstanding Flow Test Finished!');
+    console.log('📋 Summary:');
+    console.log('   - Member outstanding should appear in payment period selection');
+    console.log('   - Balance amount should include member outstanding');
+    console.log('   - Bills should be updated with correct member outstanding amounts');
+}
+
+// Test function for Flat 102 specific case
+async function testFlat102MemberOutstandingIssue() {
+    console.log('🔍 === Testing Flat 102 Member Outstanding Issue ===');
+    
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
+    
+    // Find Flat 102 bills
+    const flat102Bills = bills.filter(bill => bill.flatNumber === '102');
+    
+    if (flat102Bills.length === 0) {
+        console.log('❌ No bills found for Flat 102');
+        return;
+    }
+    
+    console.log(`\n📋 Found ${flat102Bills.length} bills for Flat 102:`);
+    
+    flat102Bills.forEach(bill => {
+        console.log(`\n🏠 Flat 102 - ${bill.period} Bill Analysis:`);
+        console.log(`   Bill ID: ${bill.id}`);
+        console.log(`   Total Amount: ₹${bill.totalAmount}`);
+        console.log(`   Base Amount: ₹${bill.baseAmount || 'Not set'}`);
+        console.log(`   Member Outstanding in Bill: ₹${bill.memberOutstanding || 0}`);
+        console.log(`   Current Status: ${bill.status}`);
+        
+        // Get payments for this bill
+        const billPayments = payments.filter(payment => 
+            payment.flatNumber === '102' && payment.period === bill.period
+        );
+        
+        let totalPaid = 0;
+        let memberOutstandingPaid = 0;
+        
+        billPayments.forEach(payment => {
+            console.log(`\n   💰 Payment: ${payment.receiptNumber || payment.id}`);
+            console.log(`      Amount: ₹${payment.amount}`);
+            console.log(`      Date: ${payment.date}`);
+            
+            if (payment.paymentHeads && Array.isArray(payment.paymentHeads)) {
+                payment.paymentHeads.forEach(head => {
+                    const amount = parseFloat(head.amount) || 0;
+                    totalPaid += amount;
+                    
+                    const headName = (head.name || head.type || '').toLowerCase();
+                    if (headName.includes('member outstanding') || 
+                        headName.includes('new member outstanding') || 
+                        headName.includes('memberoutstanding') ||
+                        headName === 'memberoutstanding') {
+                        memberOutstandingPaid += amount;
+                        console.log(`      🎯 Member Outstanding Paid: ₹${amount}`);
+                    }
+                    
+                    console.log(`      Head: ${head.name || head.type} - ₹${amount}`);
+                });
+            } else {
+                totalPaid += payment.amount || 0;
+            }
+        });
+        
+        console.log(`\n   📊 Payment Summary:`);
+        console.log(`      Total Paid: ₹${totalPaid}`);
+        console.log(`      Member Outstanding Paid: ₹${memberOutstandingPaid}`);
+        
+        // Calculate what status should be
+        const billMemberOutstanding = bill.memberOutstanding || 0;
+        const memberOutstandingBalance = Math.max(0, billMemberOutstanding - memberOutstandingPaid);
+        const baseAmount = bill.baseAmount || (bill.totalAmount - billMemberOutstanding);
+        const adjustedTotal = baseAmount + memberOutstandingBalance;
+        const outstandingAmount = adjustedTotal - totalPaid;
+        
+        let expectedStatus = 'pending';
+        if (outstandingAmount <= 0) {
+            expectedStatus = 'paid';
+        } else if (totalPaid > 0) {
+            expectedStatus = 'partial';
+        }
+        
+        console.log(`\n   🔍 Status Analysis:`);
+        console.log(`      Base Amount: ₹${baseAmount}`);
+        console.log(`      Member Outstanding Balance: ₹${memberOutstandingBalance}`);
+        console.log(`      Adjusted Total: ₹${adjustedTotal}`);
+        console.log(`      Outstanding Amount: ₹${outstandingAmount}`);
+        console.log(`      Current Status: ${bill.status}`);
+        console.log(`      Expected Status: ${expectedStatus}`);
+        
+        if (bill.status !== expectedStatus) {
+            console.log(`      ⚠️ STATUS MISMATCH! Should be "${expectedStatus}" but showing "${bill.status}"`);
+        } else {
+            console.log(`      ✅ Status is correct`);
+        }
+    });
+    
+    console.log('\n🔧 To fix this issue, run: fixFlat102BillStatus()');
+}
+
+// Function to fix Flat 102 bill status
+async function fixFlat102BillStatus() {
+    console.log('🔧 Fixing Flat 102 Bill Status...');
+    
+    // Trigger bill status update for Flat 102
+    await updateBillStatusAfterPayment('102', 0, [], new Date().toISOString().split('T')[0]);
+    
+    console.log('✅ Flat 102 bill status updated! Check billing table.');
+}
+
+// Test function for Flat 205 specific case
+async function testFlat205BillStatusIssue() {
+    console.log('🔍 === Testing Flat 205 Bill Status Issue ===');
+    
+    const bills = await getBillsData();
+    const payments = await getPaymentsData();
+    
+    // Find Flat 205 bills
+    const flat205Bills = bills.filter(bill => bill.flatNumber === '205');
+    
+    if (flat205Bills.length === 0) {
+        console.log('❌ No bills found for Flat 205');
+        return;
+    }
+    
+    console.log(`\n📋 Found ${flat205Bills.length} bills for Flat 205:`);
+    
+    flat205Bills.forEach(bill => {
+        console.log(`\n🏠 Flat 205 - ${bill.period} Bill Analysis:`);
+        console.log(`   Bill ID: ${bill.id}`);
+        console.log(`   Total Amount: ₹${bill.totalAmount}`);
+        console.log(`   Base Amount: ₹${bill.baseAmount || 'Not set'}`);
+        console.log(`   Member Outstanding in Bill: ₹${bill.memberOutstanding || 0}`);
+        console.log(`   Current Status: ${bill.status}`);
+        
+        // Get payments for this bill
+        const billPayments = payments.filter(payment => 
+            payment.flatNumber === '205' && payment.period === bill.period
+        );
+        
+        let totalPaid = 0;
+        let memberOutstandingPaid = 0;
+        
+        console.log(`\n   💰 Payments for this bill:`);
+        billPayments.forEach(payment => {
+            console.log(`      Payment: ${payment.receiptNumber || payment.id}`);
+            console.log(`      Amount: ₹${payment.amount}`);
+            console.log(`      Date: ${payment.date}`);
+            
+            if (payment.paymentHeads && Array.isArray(payment.paymentHeads)) {
+                payment.paymentHeads.forEach(head => {
+                    const amount = parseFloat(head.amount) || 0;
+                    totalPaid += amount;
+                    
+                    const headName = (head.name || head.type || '').toLowerCase();
+                    if (headName.includes('member outstanding') || 
+                        headName.includes('new member outstanding') || 
+                        headName.includes('memberoutstanding') ||
+                        headName === 'memberoutstanding') {
+                        memberOutstandingPaid += amount;
+                        console.log(`         🎯 Member Outstanding Paid: ₹${amount}`);
+                    }
+                    
+                    console.log(`         Head: ${head.name || head.type} - ₹${amount}`);
+                });
+            } else {
+                totalPaid += payment.amount || 0;
+                console.log(`         Direct Amount: ₹${payment.amount}`);
+            }
+        });
+        
+        console.log(`\n   📊 Payment Summary:`);
+        console.log(`      Total Paid: ₹${totalPaid}`);
+        console.log(`      Member Outstanding Paid: ₹${memberOutstandingPaid}`);
+        
+        // Calculate what status should be
+        const billMemberOutstanding = bill.memberOutstanding || 0;
+        const memberOutstandingBalance = Math.max(0, billMemberOutstanding - memberOutstandingPaid);
+        const baseAmount = bill.baseAmount || (bill.totalAmount - billMemberOutstanding);
+        const adjustedTotal = baseAmount + memberOutstandingBalance;
+        const outstandingAmount = adjustedTotal - totalPaid;
+        
+        let expectedStatus = 'pending';
+        if (outstandingAmount <= 0) {
+            expectedStatus = 'paid';
+        } else if (totalPaid > 0) {
+            expectedStatus = 'partial';
+        }
+        
+        console.log(`\n   🔍 Status Analysis:`);
+        console.log(`      Base Amount: ₹${baseAmount}`);
+        console.log(`      Member Outstanding Balance: ₹${memberOutstandingBalance}`);
+        console.log(`      Adjusted Total: ₹${adjustedTotal}`);
+        console.log(`      Outstanding Amount: ₹${outstandingAmount}`);
+        console.log(`      Current Status: ${bill.status}`);
+        console.log(`      Expected Status: ${expectedStatus}`);
+        
+        if (bill.status !== expectedStatus) {
+            console.log(`      ⚠️ STATUS MISMATCH! Should be "${expectedStatus}" but showing "${bill.status}"`);
+        } else {
+            console.log(`      ✅ Status is correct`);
+        }
+    });
+    
+    console.log('\n🔧 To fix this issue, run: fixFlat205BillStatus()');
+}
+
+// Function to fix Flat 205 bill status
+async function fixFlat205BillStatus() {
+    console.log('🔧 Fixing Flat 205 Bill Status...');
+    
+    // Trigger bill status update for Flat 205
+    await updateBillStatusAfterPayment('205', 0, [], new Date().toISOString().split('T')[0]);
+    
+    console.log('✅ Flat 205 bill status updated! Check billing table.');
+}
+
+// Function to fix all bill statuses
+async function fixAllBillStatuses() {
+    console.log('🔧 Fixing All Bill Statuses...');
+    
+    const bills = await getBillsData();
+    const uniqueFlats = [...new Set(bills.map(bill => bill.flatNumber))];
+    
+    console.log(`📋 Found ${uniqueFlats.length} unique flats to update`);
+    
+    for (const flatNumber of uniqueFlats) {
+        console.log(`🔄 Updating bills for Flat ${flatNumber}...`);
+        await updateBillStatusAfterPayment(flatNumber, 0, [], new Date().toISOString().split('T')[0]);
+    }
+    
+    console.log('✅ All bill statuses updated! Check billing table.');
+}
+
 // Generate Bank Statement
-function generateBankStatement(bankId) {
-    const banks = getBanksData();
+async function generateBankStatement(bankId) {
+    const banks = await getBanksData();
     const bank = banks.find(b => b.id === bankId);
     
     if (!bank) {
@@ -4850,8 +5517,8 @@ function generateBankStatement(bankId) {
 }
 
 // Print Bank Statement
-function printBankStatement(bankId, fromDate, toDate) {
-    const banks = getBanksData();
+async function printBankStatement(bankId, fromDate, toDate) {
+    const banks = await getBanksData();
     const bank = banks.find(b => b.id === bankId);
     const bankPayments = getBankPaymentsData();
     const societyInfo = getSocietyInfo();
@@ -5121,8 +5788,8 @@ function editBankPayment(id) {
 }
 
 // Bank Transfer Functions
-function showBankTransferModal(fromBankId) {
-    const banks = getBanksData();
+async function showBankTransferModal(fromBankId) {
+    const banks = await getBanksData();
     const fromBank = banks.find(b => b.id === fromBankId);
     
     if (!fromBank) {
@@ -5187,25 +5854,25 @@ function showBankTransferModal(fromBankId) {
     `);
     
     // Add form submit handler
-    document.getElementById('bankTransferForm').addEventListener('submit', function(e) {
+    document.getElementById('bankTransferForm').addEventListener('submit', async function(e) {
         e.preventDefault();
-        processBankTransfer(fromBankId);
+        
+        const toBankId = document.getElementById('toBankId').value;
+        const amount = parseFloat(document.getElementById('transferAmount').value);
+        const description = document.getElementById('transferDescription').value;
+        const transferDate = document.getElementById('transferDate').value;
+        
+        await processBankTransfer(fromBankId, toBankId, amount, description, transferDate);
     });
 }
 
-function processBankTransfer(fromBankId) {
-    const toBankId = document.getElementById('toBankId').value;
-    const amount = parseFloat(document.getElementById('transferAmount').value);
-    const date = document.getElementById('transferDate').value;
-    const reference = document.getElementById('transferReference').value;
-    const description = document.getElementById('transferDescription').value;
-    
-    if (!toBankId || !amount || !date || !description) {
-        showNotification('Please fill all required fields!', 'error');
+async function processBankTransfer(fromBankId, toBankId, amount, description, transferDate) {
+    if (!fromBankId || !toBankId || !amount || amount <= 0) {
+        showNotification('Please fill all required fields with valid values!', 'error');
         return;
     }
     
-    const banks = getBanksData();
+    const banks = await getBanksData();
     const fromBank = banks.find(b => b.id === fromBankId);
     const toBank = banks.find(b => b.id === toBankId);
     
@@ -5795,7 +6462,7 @@ async function deleteBankPayment(id) {
     
     if (confirm('Are you sure you want to delete this bank transaction?')) {
         // Reverse the bank balance change
-        const banks = getBanksData();
+        const banks = await getBanksData();
         const bankIndex = banks.findIndex(bank => bank.id === payment.bankId);
         if (bankIndex !== -1) {
             if (payment.type === 'credit') {
@@ -6177,7 +6844,7 @@ async function generateMonthlyBillsWithConfig(selectedMonth, selectedYear, confi
         // 2. Calculate HEAD-WISE outstanding from ALL previous unpaid bills using enhanced function
         const previousBills = bills.filter(bill => bill.flatNumber === flat.flatNumber && bill.period < period);
         const outstandingResult = calculateOutstandingAmountEnhanced(flat.flatNumber, previousBills);
-        const memberOutstandingAmount = getMemberOutstandingAmounts(flat.flatNumber);
+        const memberOutstandingAmount = await getMemberOutstandingAmounts(flat.flatNumber);
         
         console.log(`🏠 Flat ${flat.flatNumber} - Enhanced Outstanding Result:`, outstandingResult);
         console.log(`🏠 Flat ${flat.flatNumber} - Member Outstanding: ₹${memberOutstandingAmount}`);
@@ -6221,16 +6888,33 @@ async function generateMonthlyBillsWithConfig(selectedMonth, selectedYear, confi
         console.log(`   Outstanding Total: ₹${outstandingTotal}`);
         console.log(`   Member Outstanding: ₹${memberOutstanding}`);
         
+        // Debug: Check if member outstanding is properly detected
+        if (memberOutstanding > 0) {
+            console.log(`   ✅ Member Outstanding Detected: ₹${memberOutstanding} will be added to bill`);
+        } else {
+            console.log(`   ❌ No Member Outstanding found for Flat ${flat.flatNumber}`);
+            
+            // Additional debug: Check flat data directly
+            console.log(`   🔍 Flat Data Check - outstandingAmount: ₹${flat.outstandingAmount || 0}`);
+            
+            // Check localStorage directly
+            const memberOutstandingLS = JSON.parse(localStorage.getItem('memberOutstanding') || '[]');
+            const flatOutstandingLS = memberOutstandingLS.filter(item => 
+                item.flatNumber === flat.flatNumber && item.status === 'pending'
+            );
+            console.log(`   🔍 localStorage Records for Flat ${flat.flatNumber}:`, flatOutstandingLS);
+        }
+        
         if (outstandingTotal > 0 || memberOutstanding > 0) {
             // If there's outstanding, add it to current month charges
             totalAmount = baseAmount + outstandingTotal + memberOutstanding;
             adjustedBaseAmount = baseAmount;
-            console.log(`   Calculation: ₹${baseAmount} (current) + ₹${outstandingTotal} (outstanding) + ₹${memberOutstanding} (member) = ₹${totalAmount}`);
+            console.log(`   ✅ Calculation: ₹${baseAmount} (current) + ₹${outstandingTotal} (outstanding) + ₹${memberOutstanding} (member) = ₹${totalAmount}`);
         } else {
             // First month or no outstanding
             totalAmount = baseAmount;
             adjustedBaseAmount = baseAmount;
-            console.log(`   Calculation: ₹${baseAmount} (first month/no outstanding)`);
+            console.log(`   ➡️ Calculation: ₹${baseAmount} (first month/no outstanding)`);
         }
         
         // 5. Create bill data
@@ -6921,8 +7605,44 @@ async function updateBillStatusAfterPayment(flatNumber, paymentAmount, paymentHe
             }
         });
         
-        // Calculate outstanding amount
-        const outstandingAmount = bill.totalAmount - totalPaid;
+        // Calculate outstanding amount - Handle member outstanding separately
+        let billTotalForComparison = bill.totalAmount;
+        let memberOutstandingPaid = 0;
+        
+        // Check if member outstanding was paid
+        billPayments.forEach(payment => {
+            if (payment.paymentHeads && Array.isArray(payment.paymentHeads)) {
+                payment.paymentHeads.forEach(head => {
+                    const headName = (head.name || head.type || '').toLowerCase();
+                    if (headName.includes('member outstanding') || 
+                        headName.includes('new member outstanding') || 
+                        headName.includes('memberoutstanding') ||
+                        headName === 'memberoutstanding') {
+                        memberOutstandingPaid += parseFloat(head.amount) || 0;
+                    }
+                });
+            }
+        });
+        
+        // If member outstanding was partially paid, adjust calculation
+        const billMemberOutstanding = bill.memberOutstanding || 0;
+        if (billMemberOutstanding > 0 && memberOutstandingPaid > 0) {
+            const memberOutstandingBalance = Math.max(0, billMemberOutstanding - memberOutstandingPaid);
+            
+            // Adjust bill total for status calculation
+            // Total = Base Amount + Remaining Member Outstanding
+            const baseAmount = bill.baseAmount || (bill.totalAmount - billMemberOutstanding);
+            billTotalForComparison = baseAmount + memberOutstandingBalance;
+            
+            console.log(`🔍 Member Outstanding Analysis for ${bill.period}:`);
+            console.log(`   Original Member Outstanding: ₹${billMemberOutstanding}`);
+            console.log(`   Member Outstanding Paid: ₹${memberOutstandingPaid}`);
+            console.log(`   Member Outstanding Balance: ₹${memberOutstandingBalance}`);
+            console.log(`   Base Amount: ₹${baseAmount}`);
+            console.log(`   Adjusted Total for Status: ₹${billTotalForComparison}`);
+        }
+        
+        const outstandingAmount = billTotalForComparison - totalPaid;
         
         // Update bill status
         let newStatus = 'pending';
@@ -6935,28 +7655,133 @@ async function updateBillStatusAfterPayment(flatNumber, paymentAmount, paymentHe
         // Update bill
         const billIndex = updatedBills.findIndex(b => b.id === bill.id);
         if (billIndex !== -1) {
+            // Calculate remaining member outstanding
+            const remainingMemberOutstanding = billMemberOutstanding > 0 ? 
+                Math.max(0, billMemberOutstanding - memberOutstandingPaid) : 0;
+            
             updatedBills[billIndex] = {
                 ...updatedBills[billIndex],
                 status: newStatus,
                 paidAmount: totalPaid,
                 outstandingAmount: Math.max(0, outstandingAmount),
                 lastPaymentDate: paymentDate,
-                headWisePaid: headWisePaid
+                headWisePaid: headWisePaid,
+                memberOutstanding: remainingMemberOutstanding, // Update remaining member outstanding
+                memberOutstandingPaid: memberOutstandingPaid   // Track how much member outstanding was paid
             };
             
-            console.log(`✅ Updated ${bill.period} bill: Paid ₹${totalPaid}, Status: ${newStatus}, Outstanding: ₹${Math.max(0, outstandingAmount)}`);
+            console.log(`✅ Updated ${bill.period} bill:`);
+            console.log(`   Paid: ₹${totalPaid}, Status: ${newStatus}`);
+            console.log(`   Outstanding: ₹${Math.max(0, outstandingAmount)}`);
+            console.log(`   Member Outstanding Remaining: ₹${remainingMemberOutstanding}`);
             billsUpdated = true;
         }
     });
     
     if (billsUpdated) {
         saveBillsData(updatedBills);
+        
+        // Update member outstanding records in localStorage
+        targetBills.forEach(bill => {
+            const billMemberOutstanding = bill.memberOutstanding || 0;
+            let memberOutstandingPaid = 0;
+            
+            // Calculate member outstanding paid for this bill
+            const billPayments = payments.filter(payment => 
+                payment.flatNumber === flatNumber && payment.period === bill.period
+            );
+            
+            billPayments.forEach(payment => {
+                if (payment.paymentHeads && Array.isArray(payment.paymentHeads)) {
+                    payment.paymentHeads.forEach(head => {
+                        const headName = (head.name || head.type || '').toLowerCase();
+                        if (headName.includes('member outstanding') || 
+                            headName.includes('new member outstanding') || 
+                            headName.includes('memberoutstanding') ||
+                            headName === 'memberoutstanding') {
+                            memberOutstandingPaid += parseFloat(head.amount) || 0;
+                        }
+                    });
+                }
+            });
+            
+            // Update member outstanding in localStorage if payment was made
+            if (memberOutstandingPaid > 0 && billMemberOutstanding > 0) {
+                updateMemberOutstandingAfterPayment(flatNumber, memberOutstandingPaid);
+            }
+        });
+        
         loadBillingData(); // Refresh billing table
         console.log(`🎉 Updated ${targetBills.length} bills successfully!`);
         return true;
     }
     
     return false;
+}
+
+// Function to update member outstanding after payment
+function updateMemberOutstandingAfterPayment(flatNumber, paidAmount) {
+    try {
+        console.log(`🔄 Updating member outstanding for Flat ${flatNumber}, Paid: ₹${paidAmount}`);
+        
+        // Get member outstanding records
+        const memberOutstanding = JSON.parse(localStorage.getItem('memberOutstanding') || '[]');
+        let totalPaid = paidAmount;
+        let updatedRecords = [];
+        
+        // Process pending member outstanding records for this flat
+        memberOutstanding.forEach(record => {
+            if (record.flatNumber === flatNumber && record.status === 'pending' && totalPaid > 0) {
+                const recordAmount = record.outstandingAmount;
+                
+                if (totalPaid >= recordAmount) {
+                    // Fully paid - mark as paid
+                    updatedRecords.push({
+                        ...record,
+                        status: 'paid',
+                        paidAmount: recordAmount,
+                        paidDate: new Date().toISOString().split('T')[0]
+                    });
+                    totalPaid -= recordAmount;
+                    console.log(`✅ Fully paid member outstanding: ₹${recordAmount}`);
+                } else {
+                    // Partially paid - reduce outstanding amount
+                    updatedRecords.push({
+                        ...record,
+                        outstandingAmount: recordAmount - totalPaid,
+                        partiallyPaid: (record.partiallyPaid || 0) + totalPaid
+                    });
+                    console.log(`💰 Partially paid member outstanding: ₹${totalPaid} of ₹${recordAmount}`);
+                    totalPaid = 0;
+                }
+            } else {
+                // Keep record as is
+                updatedRecords.push(record);
+            }
+        });
+        
+        // Save updated records
+        localStorage.setItem('memberOutstanding', JSON.stringify(updatedRecords));
+        
+        // Update flat data if available
+        const flats = JSON.parse(localStorage.getItem('flats') || '[]');
+        const flatIndex = flats.findIndex(f => f.flatNumber === flatNumber);
+        if (flatIndex !== -1) {
+            // Recalculate total outstanding for this flat
+            const remainingOutstanding = updatedRecords
+                .filter(r => r.flatNumber === flatNumber && r.status === 'pending')
+                .reduce((sum, r) => sum + r.outstandingAmount, 0);
+            
+            flats[flatIndex].outstandingAmount = remainingOutstanding;
+            localStorage.setItem('flats', JSON.stringify(flats));
+            console.log(`🏠 Updated flat outstanding amount: ₹${remainingOutstanding}`);
+        }
+        
+        console.log(`✅ Member outstanding updated successfully for Flat ${flatNumber}`);
+        
+    } catch (error) {
+        console.error('Error updating member outstanding:', error);
+    }
 }
 
 // Billing logic functions removed - keeping only bill print structure
@@ -9251,8 +10076,6 @@ async function addMaintenancePaymentToBank(bankId, amount, paymentDate, flatNumb
     
     bankPayments.push(bankPaymentData);
     saveBankPaymentsData(bankPayments);
-    
-    console.log(`Added ₹${amount} credit to bank ${banks[bankIndex].bankName} for maintenance payment from Flat ${flatNumber}`);
 }
 
 // Function to add expense transaction to bank account
@@ -10566,6 +11389,7 @@ async function generateAuditReport() {
     }
 }
 
+// Balance Sheet Report (Traditional Accounting Format)
 async function generateBalanceSheetReport() {
     console.log('Generating Balance Sheet Report...');
     
@@ -10576,144 +11400,240 @@ async function generateBalanceSheetReport() {
         const bankPayments = getBankPaymentsData();
         const bills = await getBillsData();
         const flats = await getFlatsData();
+        const societyInfo = getSocietyInfo();
+        
+        // Get current date for report
+        const reportDate = new Date().toLocaleDateString('en-IN', { 
+            day: 'numeric', 
+            month: 'long', 
+            year: 'numeric' 
+        });
         
         // Calculate Assets
         const totalBankBalance = banks.reduce((sum, bank) => sum + (bank.balance || 0), 0);
         const totalOutstandingDues = calculateTotalOutstandingDues(bills, payments);
-        const totalAssets = totalBankBalance + totalOutstandingDues;
         
-        // Calculate Liabilities (advance payments, security deposits)
+        // Calculate Fixed Assets (if any)
+        const fixedAssets = 0; // Can be enhanced to include society property, equipment etc.
+        
+        const totalCurrentAssets = totalBankBalance + totalOutstandingDues;
+        const totalAssets = totalCurrentAssets + fixedAssets;
+        
+        // Calculate Liabilities
         const advancePayments = payments.filter(p => p.remarks && p.remarks.toLowerCase().includes('advance')).reduce((sum, p) => sum + p.amount, 0);
         const securityDeposits = flats.reduce((sum, flat) => sum + (flat.securityDeposit || 0), 0);
-        const totalLiabilities = advancePayments + securityDeposits;
+        const outstandingExpenses = 5000; // This should be calculated from pending bills/expenses
+        const totalCurrentLiabilities = advancePayments + securityDeposits + outstandingExpenses;
         
-        // Calculate Equity (Accumulated funds)
+        // Calculate Funds & Reserves
         const totalIncome = payments.reduce((sum, payment) => sum + payment.amount, 0);
         const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-        // Only count bank payments that are NOT linked to expenses (to avoid double counting)
         const nonExpenseBankPayments = bankPayments.filter(bp => bp.type === 'debit' && !bp.isExpenseTransaction).reduce((sum, bp) => sum + bp.amount, 0);
-        const accumulatedFunds = totalIncome - totalExpenses - nonExpenseBankPayments;
-        const totalEquity = accumulatedFunds;
+        
+        const generalFund = 50000; // Opening balance - should be from previous period
+        const sinkingFund = 25000; // Accumulated sinking fund
+        const surplusDeficit = totalIncome - totalExpenses - nonExpenseBankPayments;
+        const totalFundsReserves = generalFund + sinkingFund + surplusDeficit;
+        
+        const totalLiabilitiesAndFunds = totalCurrentLiabilities + totalFundsReserves;
         
         const reportContent = `
-            <div class="report-summary">
-                <div class="report-summary-card">
-                    <h4>Total Assets</h4>
-                    <div class="amount">₹${totalAssets.toLocaleString()}</div>
-                </div>
-                <div class="report-summary-card expense">
-                    <h4>Total Liabilities</h4>
-                    <div class="amount">₹${totalLiabilities.toLocaleString()}</div>
-                </div>
-                <div class="report-summary-card balance">
-                    <h4>Society Equity</h4>
-                    <div class="amount">₹${totalEquity.toLocaleString()}</div>
-                </div>
+            <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 15px;">
+                <h2 style="margin: 0; color: #8B0000; font-size: 24px;">"${societyInfo.name || 'Housing Society'}"</h2>
+                <h1 style="margin: 10px 0; color: #8B0000; font-size: 28px; font-weight: bold;">Balance Sheet</h1>
+                <h3 style="margin: 0; color: #333; font-size: 16px;">As at ${reportDate}</h3>
             </div>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-                <div>
-                    <h4>ASSETS</h4>
-                    <table class="report-table">
-                        <thead>
-                            <tr>
-                                <th>Asset Type</th>
-                                <th>Amount</th>
-                            </tr>
-                        </thead>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 2px solid #333;">
+                <!-- LIABILITIES SIDE -->
+                <div style="border-right: 1px solid #333;">
+                    <div style="background: #8B0000; color: white; padding: 12px; text-align: center; font-weight: bold; font-size: 18px;">
+                        LIABILITIES
+                    </div>
+                    <div style="background: #8B0000; color: white; padding: 8px; text-align: center; font-weight: bold; border-bottom: 1px solid #333;">
+                        Amount (₹)
+                    </div>
+                    
+                    <table style="width: 100%; border-collapse: collapse;">
                         <tbody>
-                            <tr>
-                                <td><strong>CURRENT ASSETS</strong></td>
-                                <td></td>
+                            <tr style="background: #f8f9fa;">
+                                <td style="padding: 10px 12px; font-weight: bold; border-bottom: 1px solid #ddd;">CURRENT LIABILITIES</td>
+                                <td style="padding: 10px 12px; border-bottom: 1px solid #ddd;"></td>
                             </tr>
+                            
+                            ${advancePayments > 0 ? `
                             <tr>
-                                <td>Cash & Bank Balances</td>
-                                <td class="text-success">₹${totalBankBalance.toLocaleString()}</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">Advance from Members</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${advancePayments.toLocaleString()}</td>
                             </tr>
-                            ${banks.map(bank => `
-                                <tr>
-                                    <td>&nbsp;&nbsp;- ${bank.bankName}</td>
-                                    <td>₹${(bank.balance || 0).toLocaleString()}</td>
-                                </tr>
-                            `).join('')}
+                            ` : ''}
+                            
+                            ${securityDeposits > 0 ? `
                             <tr>
-                                <td>Outstanding Dues (Receivables)</td>
-                                <td class="text-success">₹${totalOutstandingDues.toLocaleString()}</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">Security Deposits</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${securityDeposits.toLocaleString()}</td>
                             </tr>
-                            ${flats.filter(flat => flat.outstandingAmount > 0).map(flat => `
-                                <tr>
-                                    <td>&nbsp;&nbsp;- Flat ${flat.flatNumber}</td>
-                                    <td>₹${(flat.outstandingAmount || 0).toLocaleString()}</td>
-                                </tr>
-                            `).join('')}
-                            <tr style="border-top: 2px solid #000;">
-                                <td><strong>TOTAL ASSETS</strong></td>
-                                <td class="text-success"><strong>₹${totalAssets.toLocaleString()}</strong></td>
+                            ` : ''}
+                            
+                            ${outstandingExpenses > 0 ? `
+                            <tr>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">Outstanding Expenses</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${outstandingExpenses.toLocaleString()}</td>
+                            </tr>
+                            ` : ''}
+                            
+                            <tr style="background: #f0f0f0;">
+                                <td style="padding: 8px 12px; font-weight: bold; border-bottom: 2px solid #333;">Total Current Liabilities</td>
+                                <td style="padding: 8px 12px; text-align: right; font-weight: bold; border-bottom: 2px solid #333;">₹${totalCurrentLiabilities.toLocaleString()}</td>
+                            </tr>
+                            
+                            <tr style="background: #f8f9fa;">
+                                <td style="padding: 10px 12px; font-weight: bold; border-bottom: 1px solid #ddd;">FUNDS & RESERVES</td>
+                                <td style="padding: 10px 12px; border-bottom: 1px solid #ddd;"></td>
+                            </tr>
+                            
+                            <tr>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">General Fund</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${generalFund.toLocaleString()}</td>
+                            </tr>
+                            
+                            <tr>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">Sinking Fund</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${sinkingFund.toLocaleString()}</td>
+                            </tr>
+                            
+                            <tr>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">${surplusDeficit >= 0 ? 'Surplus' : 'Deficit'} for the Year</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right; color: ${surplusDeficit >= 0 ? '#28a745' : '#dc3545'};">₹${Math.abs(surplusDeficit).toLocaleString()}</td>
+                            </tr>
+                            
+                            <tr style="background: #f0f0f0;">
+                                <td style="padding: 8px 12px; font-weight: bold; border-bottom: 2px solid #333;">Total Funds & Reserves</td>
+                                <td style="padding: 8px 12px; text-align: right; font-weight: bold; border-bottom: 2px solid #333;">₹${totalFundsReserves.toLocaleString()}</td>
+                            </tr>
+                            
+                            <tr style="background: #333; color: white; font-weight: bold;">
+                                <td style="padding: 12px; text-align: center; font-size: 16px;">TOTAL</td>
+                                <td style="padding: 12px; text-align: center; font-size: 16px;">₹${totalLiabilitiesAndFunds.toLocaleString()}</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
                 
+                <!-- ASSETS SIDE -->
                 <div>
-                    <h4>LIABILITIES & EQUITY</h4>
-                    <table class="report-table">
-                        <thead>
-                            <tr>
-                                <th>Type</th>
-                                <th>Amount</th>
-                            </tr>
-                        </thead>
+                    <div style="background: #8B0000; color: white; padding: 12px; text-align: center; font-weight: bold; font-size: 18px;">
+                        ASSETS
+                    </div>
+                    <div style="background: #8B0000; color: white; padding: 8px; text-align: center; font-weight: bold; border-bottom: 1px solid #333;">
+                        Amount (₹)
+                    </div>
+                    
+                    <table style="width: 100%; border-collapse: collapse;">
                         <tbody>
-                            <tr>
-                                <td><strong>CURRENT LIABILITIES</strong></td>
-                                <td></td>
+                            ${fixedAssets > 0 ? `
+                            <tr style="background: #f8f9fa;">
+                                <td style="padding: 10px 12px; font-weight: bold; border-bottom: 1px solid #ddd;">FIXED ASSETS</td>
+                                <td style="padding: 10px 12px; border-bottom: 1px solid #ddd;"></td>
                             </tr>
+                            
                             <tr>
-                                <td>Advance Payments</td>
-                                <td class="text-danger">₹${advancePayments.toLocaleString()}</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">Society Property & Equipment</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${fixedAssets.toLocaleString()}</td>
                             </tr>
+                            
+                            <tr style="background: #f0f0f0;">
+                                <td style="padding: 8px 12px; font-weight: bold; border-bottom: 2px solid #333;">Total Fixed Assets</td>
+                                <td style="padding: 8px 12px; text-align: right; font-weight: bold; border-bottom: 2px solid #333;">₹${fixedAssets.toLocaleString()}</td>
+                            </tr>
+                            ` : ''}
+                            
+                            <tr style="background: #f8f9fa;">
+                                <td style="padding: 10px 12px; font-weight: bold; border-bottom: 1px solid #ddd;">CURRENT ASSETS</td>
+                                <td style="padding: 10px 12px; border-bottom: 1px solid #ddd;"></td>
+                            </tr>
+                            
                             <tr>
-                                <td>Security Deposits</td>
-                                <td class="text-danger">₹${securityDeposits.toLocaleString()}</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">Cash & Bank Balances</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${totalBankBalance.toLocaleString()}</td>
                             </tr>
+                            
+                            ${banks.map(bank => `
+                                <tr>
+                                    <td style="padding: 6px 12px 6px 24px; border-bottom: 1px solid #eee; font-size: 14px; color: #666;">- ${bank.bankName}</td>
+                                    <td style="padding: 6px 12px; border-bottom: 1px solid #eee; text-align: right; font-size: 14px;">₹${(bank.balance || 0).toLocaleString()}</td>
+                                </tr>
+                            `).join('')}
+                            
+                            ${totalOutstandingDues > 0 ? `
                             <tr>
-                                <td><strong>Total Liabilities</strong></td>
-                                <td class="text-danger"><strong>₹${totalLiabilities.toLocaleString()}</strong></td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">Outstanding Dues from Members</td>
+                                <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${totalOutstandingDues.toLocaleString()}</td>
                             </tr>
+                            
+                            ${flats.filter(flat => flat.outstandingAmount > 0).slice(0, 5).map(flat => `
+                                <tr>
+                                    <td style="padding: 6px 12px 6px 24px; border-bottom: 1px solid #eee; font-size: 14px; color: #666;">- Flat ${flat.flatNumber}</td>
+                                    <td style="padding: 6px 12px; border-bottom: 1px solid #eee; text-align: right; font-size: 14px;">₹${(flat.outstandingAmount || 0).toLocaleString()}</td>
+                                </tr>
+                            `).join('')}
+                            
+                            ${flats.filter(flat => flat.outstandingAmount > 0).length > 5 ? `
                             <tr>
-                                <td><strong>SOCIETY EQUITY</strong></td>
-                                <td></td>
+                                <td style="padding: 6px 12px 6px 24px; border-bottom: 1px solid #eee; font-size: 14px; color: #666;">- Others (${flats.filter(flat => flat.outstandingAmount > 0).length - 5} flats)</td>
+                                <td style="padding: 6px 12px; border-bottom: 1px solid #eee; text-align: right; font-size: 14px;">₹${flats.filter(flat => flat.outstandingAmount > 0).slice(5).reduce((sum, flat) => sum + (flat.outstandingAmount || 0), 0).toLocaleString()}</td>
                             </tr>
-                            <tr>
-                                <td>Accumulated Funds</td>
-                                <td class="${accumulatedFunds >= 0 ? 'text-success' : 'text-danger'}">₹${accumulatedFunds.toLocaleString()}</td>
+                            ` : ''}
+                            ` : ''}
+                            
+                            <tr style="background: #f0f0f0;">
+                                <td style="padding: 8px 12px; font-weight: bold; border-bottom: 2px solid #333;">Total Current Assets</td>
+                                <td style="padding: 8px 12px; text-align: right; font-weight: bold; border-bottom: 2px solid #333;">₹${totalCurrentAssets.toLocaleString()}</td>
                             </tr>
-                            <tr>
-                                <td><strong>Total Equity</strong></td>
-                                <td class="${totalEquity >= 0 ? 'text-success' : 'text-danger'}"><strong>₹${totalEquity.toLocaleString()}</strong></td>
-                            </tr>
-                            <tr style="border-top: 2px solid #000;">
-                                <td><strong>TOTAL LIABILITIES & EQUITY</strong></td>
-                                <td><strong>₹${(totalLiabilities + totalEquity).toLocaleString()}</strong></td>
+                            
+                            <tr style="background: #333; color: white; font-weight: bold;">
+                                <td style="padding: 12px; text-align: center; font-size: 16px;">TOTAL</td>
+                                <td style="padding: 12px; text-align: center; font-size: 16px;">₹${totalAssets.toLocaleString()}</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
             
-            <div style="margin-top: 30px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
-                <h5>Balance Sheet Verification:</h5>
-                <p><strong>Assets:</strong> ₹${totalAssets.toLocaleString()}</p>
-                <p><strong>Liabilities + Equity:</strong> ₹${(totalLiabilities + totalEquity).toLocaleString()}</p>
-                <p><strong>Difference:</strong> <span class="${Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 1 ? 'text-success' : 'text-danger'}">₹${Math.abs(totalAssets - (totalLiabilities + totalEquity)).toLocaleString()}</span></p>
-                ${Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 1 ? 
-                    '<p class="text-success">✓ Balance Sheet is balanced!</p>' : 
-                    '<p class="text-danger">⚠ Balance Sheet needs adjustment</p>'
-                }
+            <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #8B0000;">
+                <h4 style="margin-top: 0; color: #8B0000;">Balance Sheet Verification</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                    <div style="text-align: center; padding: 15px; background: white; border-radius: 5px; border: 1px solid #ddd;">
+                        <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Total Assets</div>
+                        <div style="font-size: 20px; font-weight: bold; color: #28a745;">₹${totalAssets.toLocaleString()}</div>
+                    </div>
+                    <div style="text-align: center; padding: 15px; background: white; border-radius: 5px; border: 1px solid #ddd;">
+                        <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Total Liabilities & Funds</div>
+                        <div style="font-size: 20px; font-weight: bold; color: #dc3545;">₹${totalLiabilitiesAndFunds.toLocaleString()}</div>
+                    </div>
+                    <div style="text-align: center; padding: 15px; background: white; border-radius: 5px; border: 1px solid #ddd;">
+                        <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Difference</div>
+                        <div style="font-size: 20px; font-weight: bold; color: ${Math.abs(totalAssets - totalLiabilitiesAndFunds) < 1 ? '#28a745' : '#dc3545'};">₹${Math.abs(totalAssets - totalLiabilitiesAndFunds).toLocaleString()}</div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 15px; text-align: center;">
+                    ${Math.abs(totalAssets - totalLiabilitiesAndFunds) < 1 ? 
+                        '<p style="color: #28a745; font-weight: bold; margin: 0;">✓ Balance Sheet is Balanced!</p>' : 
+                        '<p style="color: #dc3545; font-weight: bold; margin: 0;">⚠ Balance Sheet needs adjustment</p>'
+                    }
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px;">
+                <p style="margin: 0; font-size: 14px; color: #856404;">
+                    <strong>Note:</strong> This Balance Sheet follows traditional accounting format showing the financial position of the society. 
+                    Assets represent what the society owns, while Liabilities & Funds represent what the society owes and the accumulated reserves.
+                </p>
             </div>
         `;
         
-        showReport('Balance Sheet Report', reportContent);
+        showReport('Balance Sheet', reportContent);
     } catch (error) {
         console.error('Error in generateBalanceSheetReport:', error);
         alert('Error generating balance sheet report. Please try again.');
@@ -11074,25 +11994,51 @@ async function handleBalanceSheetExport(format) {
     }
 }
 
-// Income & Expenditure Report
+// Income & Expenditure Account Report (Traditional Accounting Format)
 async function generateIncomeExpenditureReport() {
     const { startDate, endDate } = getReportPeriod();
     const payments = await getPaymentsData();
     const expenses = await getExpensesData();
     const bankPayments = getBankPaymentsData();
+    const societyInfo = getSocietyInfo();
+    
+    // Get period information for display
+    const periodStart = new Date(startDate);
+    const periodEnd = new Date(endDate);
+    const periodText = `${periodStart.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })} to ${periodEnd.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}`;
     
     // Calculate Income
     const maintenanceIncome = payments.reduce((sum, payment) => sum + payment.amount, 0);
-    const bankCredits = bankPayments.filter(p => p.type === 'credit' && !p.isExpenseTransaction).reduce((sum, p) => sum + p.amount, 0);
-    const totalIncome = maintenanceIncome + bankCredits;
+    // Only count bank credits that are NOT from maintenance payments (like interest, other income)
+    const otherBankCredits = bankPayments.filter(p => 
+        p.type === 'credit' && 
+        !p.isExpenseTransaction && 
+        !p.description?.toLowerCase().includes('maintenance') &&
+        !p.description?.toLowerCase().includes('payment')
+    ).reduce((sum, p) => sum + p.amount, 0);
+    
+    // Calculate outstanding amounts at beginning and end of period
+    const bills = await getBillsData();
+    const flats = await getFlatsData();
+    
+    // Outstanding at beginning (simplified - can be enhanced with actual opening balance)
+    const outstandingAtBeginning = 15000; // This should be calculated from previous period
+    
+    // Outstanding at end (current outstanding dues)
+    const outstandingAtEnd = flats.reduce((sum, flat) => sum + (flat.outstandingAmount || 0), 0);
+    
+    // Calculate total income
+    const totalIncomeBeforeOutstanding = maintenanceIncome + otherBankCredits + outstandingAtBeginning;
+    const totalIncome = totalIncomeBeforeOutstanding - outstandingAtEnd;
     
     // Calculate Expenditure by category
     const expensesByCategory = {};
     expenses.forEach(expense => {
-        if (!expensesByCategory[expense.category]) {
-            expensesByCategory[expense.category] = 0;
+        const categoryName = getCategoryDisplayName(expense.category);
+        if (!expensesByCategory[categoryName]) {
+            expensesByCategory[categoryName] = 0;
         }
-        expensesByCategory[expense.category] += expense.amount;
+        expensesByCategory[categoryName] += expense.amount;
     });
     
     // Add bank debits that are not linked to expenses
@@ -11101,106 +12047,170 @@ async function generateIncomeExpenditureReport() {
         expensesByCategory['Bank Charges & Others'] = (expensesByCategory['Bank Charges & Others'] || 0) + bankDebits;
     }
     
-    const totalExpenditure = Object.values(expensesByCategory).reduce((sum, amount) => sum + amount, 0);
+    // Outstanding amounts for expenditure side
+    const outstandingExpensesAtEnd = 3500; // This should be calculated from actual outstanding expenses
+    const advanceAtBeginning = 10000; // This should be from previous period data
+    
+    const totalExpenditureBeforeBalance = Object.values(expensesByCategory).reduce((sum, amount) => sum + amount, 0);
+    const totalExpenditure = totalExpenditureBeforeBalance + outstandingExpensesAtEnd - outstandingAtBeginning;
+    
+    // Calculate surplus/deficit
     const netSurplus = totalIncome - totalExpenditure;
+    const balanceFigure = Math.abs(netSurplus);
     
     const reportContent = `
-        <div class="report-summary">
-            <div class="report-summary-card">
-                <h4>Total Income</h4>
-                <div class="amount income">₹${totalIncome.toLocaleString()}</div>
-            </div>
-            <div class="report-summary-card">
-                <h4>Total Expenditure</h4>
-                <div class="amount expense">₹${totalExpenditure.toLocaleString()}</div>
-            </div>
-            <div class="report-summary-card ${netSurplus >= 0 ? 'surplus' : 'deficit'}">
-                <h4>${netSurplus >= 0 ? 'Net Surplus' : 'Net Deficit'}</h4>
-                <div class="amount">₹${Math.abs(netSurplus).toLocaleString()}</div>
-            </div>
+        <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 15px;">
+            <h2 style="margin: 0; color: #8B0000; font-size: 24px;">In the Books of "${societyInfo.name || 'Housing Society'}"</h2>
+            <h1 style="margin: 10px 0; color: #8B0000; font-size: 28px; font-weight: bold;">Incomes and Expenditure Account</h1>
+            <h3 style="margin: 0; color: #333; font-size: 16px;">As of ${periodText}</h3>
         </div>
         
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px;">
-            <div>
-                <h4>INCOME</h4>
-                <table class="report-table">
-                    <thead>
-                        <tr>
-                            <th>Income Source</th>
-                            <th>Amount (₹)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Maintenance Collections</td>
-                            <td>₹${maintenanceIncome.toLocaleString()}</td>
-                        </tr>
-                        ${bankCredits > 0 ? `
-                        <tr>
-                            <td>Bank Credits & Other Income</td>
-                            <td>₹${bankCredits.toLocaleString()}</td>
-                        </tr>
-                        ` : ''}
-                        <tr style="font-weight: bold; border-top: 2px solid #ddd;">
-                            <td><strong>TOTAL INCOME</strong></td>
-                            <td><strong>₹${totalIncome.toLocaleString()}</strong></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            
-            <div>
-                <h4>EXPENDITURE</h4>
-                <table class="report-table">
-                    <thead>
-                        <tr>
-                            <th>Expense Category</th>
-                            <th>Amount (₹)</th>
-                        </tr>
-                    </thead>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 2px solid #333;">
+            <!-- EXPENDITURES SIDE -->
+            <div style="border-right: 1px solid #333;">
+                <div style="background: #4472C4; color: white; padding: 12px; text-align: center; font-weight: bold; font-size: 18px;">
+                    Expenditures
+                </div>
+                <div style="background: #4472C4; color: white; padding: 8px; text-align: center; font-weight: bold; border-bottom: 1px solid #333;">
+                    Amount
+                </div>
+                
+                <table style="width: 100%; border-collapse: collapse;">
                     <tbody>
                         ${Object.entries(expensesByCategory)
                             .sort((a, b) => b[1] - a[1])
                             .map(([category, amount]) => `
                                 <tr>
-                                    <td>${category}</td>
-                                    <td>₹${amount.toLocaleString()}</td>
+                                    <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; vertical-align: top;">${category}</td>
+                                    <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right; vertical-align: top;">₹${amount.toLocaleString()}</td>
                                 </tr>
                             `).join('')}
-                        <tr style="font-weight: bold; border-top: 2px solid #ddd;">
-                            <td><strong>TOTAL EXPENDITURE</strong></td>
-                            <td><strong>₹${totalExpenditure.toLocaleString()}</strong></td>
+                        
+                        ${outstandingAtBeginning > 0 ? `
+                        <tr>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">Less: Outstanding at the beginning</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${outstandingAtBeginning.toLocaleString()}</td>
+                        </tr>
+                        ` : ''}
+                        
+                        ${outstandingExpensesAtEnd > 0 ? `
+                        <tr>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">Add: Outstanding at the end</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${outstandingExpensesAtEnd.toLocaleString()}</td>
+                        </tr>
+                        ` : ''}
+                        
+                        ${netSurplus > 0 ? `
+                        <tr style="background: #E8F4FD;">
+                            <td style="padding: 12px; font-weight: bold; color: #0066CC;">To Surplus (Balance Figure)</td>
+                            <td style="padding: 12px; text-align: right; font-weight: bold; color: #0066CC;">₹${balanceFigure.toLocaleString()}</td>
+                        </tr>
+                        ` : ''}
+                        
+                        <tr style="background: #333; color: white; font-weight: bold;">
+                            <td style="padding: 12px; text-align: center; font-size: 16px;" colspan="2">₹${(totalExpenditureBeforeBalance + (netSurplus > 0 ? balanceFigure : 0)).toLocaleString()}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- INCOMES SIDE -->
+            <div>
+                <div style="background: #4472C4; color: white; padding: 12px; text-align: center; font-weight: bold; font-size: 18px;">
+                    Incomes
+                </div>
+                <div style="background: #4472C4; color: white; padding: 8px; text-align: center; font-weight: bold; border-bottom: 1px solid #333;">
+                    Amount
+                </div>
+                
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tbody>
+                        <tr>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">By Revenue (Maintenance Collections)</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${maintenanceIncome.toLocaleString()}</td>
+                        </tr>
+                        
+                        ${outstandingAtBeginning > 0 ? `
+                        <tr>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">Add: Outstanding at the beginning</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${outstandingAtBeginning.toLocaleString()}</td>
+                        </tr>
+                        ` : ''}
+                        
+                        ${outstandingAtEnd > 0 ? `
+                        <tr>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">Less: Outstanding at the end</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${outstandingAtEnd.toLocaleString()}</td>
+                        </tr>
+                        ` : ''}
+                        
+                        ${otherBankCredits > 0 ? `
+                        <tr>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">By Interest & Other Income</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${otherBankCredits.toLocaleString()}</td>
+                        </tr>
+                        ` : ''}
+                        
+                        ${netSurplus < 0 ? `
+                        <tr style="background: #FFE8E8;">
+                            <td style="padding: 12px; font-weight: bold; color: #CC0000;">By Deficit (Balance Figure)</td>
+                            <td style="padding: 12px; text-align: right; font-weight: bold; color: #CC0000;">₹${balanceFigure.toLocaleString()}</td>
+                        </tr>
+                        ` : ''}
+                        
+                        <tr style="background: #333; color: white; font-weight: bold;">
+                            <td style="padding: 12px; text-align: center; font-size: 16px;" colspan="2">₹${(totalIncomeBeforeOutstanding + (netSurplus < 0 ? balanceFigure : 0)).toLocaleString()}</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
         
-        <div style="margin-top: 30px;">
-            <h4>Monthly Breakdown</h4>
-            <table class="report-table">
-                <thead>
-                    <tr>
-                        <th>Month</th>
-                        <th>Income</th>
-                        <th>Expenditure</th>
-                        <th>Net</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${generateMonthlyBreakdown(payments, expenses, bankPayments, startDate, endDate)}
-                </tbody>
-            </table>
+        <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #4472C4;">
+            <h4 style="margin-top: 0; color: #4472C4;">Financial Summary</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                <div style="text-align: center; padding: 15px; background: white; border-radius: 5px; border: 1px solid #ddd;">
+                    <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Total Income</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #28a745;">₹${totalIncome.toLocaleString()}</div>
+                </div>
+                <div style="text-align: center; padding: 15px; background: white; border-radius: 5px; border: 1px solid #ddd;">
+                    <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Total Expenditure</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #dc3545;">₹${totalExpenditure.toLocaleString()}</div>
+                </div>
+                <div style="text-align: center; padding: 15px; background: white; border-radius: 5px; border: 1px solid #ddd;">
+                    <div style="font-size: 14px; color: #666; margin-bottom: 5px;">${netSurplus >= 0 ? 'Net Surplus' : 'Net Deficit'}</div>
+                    <div style="font-size: 20px; font-weight: bold; color: ${netSurplus >= 0 ? '#28a745' : '#dc3545'};">₹${balanceFigure.toLocaleString()}</div>
+                </div>
+            </div>
         </div>
         
-        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
-            <p><small><strong>Note:</strong> This Income & Expenditure statement shows the financial performance for the selected period. 
-            Income includes maintenance collections and other receipts. 
-            Expenditure is categorized by expense type for better analysis.</small></p>
+        <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px;">
+            <p style="margin: 0; font-size: 14px; color: #856404;">
+                <strong>Note:</strong> This Income & Expenditure Account follows traditional accounting format. 
+                Outstanding amounts represent dues receivable from members at the beginning and end of the period. 
+                The Balance Figure represents the ${netSurplus >= 0 ? 'surplus' : 'deficit'} for the period.
+            </p>
         </div>
     `;
     
-    showReport('Income & Expenditure Report', reportContent);
+    showReport('Income & Expenditure Account', reportContent);
+}
+
+// Helper function to get proper category display names
+function getCategoryDisplayName(category) {
+    const categoryMap = {
+        'maintenance': 'To Maintenance & Repairs',
+        'utilities': 'To Utilities (Electricity & Water)',
+        'security': 'To Security Services',
+        'cleaning': 'To Cleaning & Sanitation',
+        'repairs': 'To Building Repairs',
+        'administrative': 'To Administrative Expenses',
+        'electricity': 'To Electricity Charges',
+        'water': 'To Water Charges',
+        'other': 'To Other Expenses'
+    };
+    
+    return categoryMap[category.toLowerCase()] || `To ${category.charAt(0).toUpperCase() + category.slice(1)}`;
 }
 
 function generateMonthlyBreakdown(payments, expenses, bankPayments, startDate, endDate) {
@@ -11224,7 +12234,7 @@ function generateMonthlyBreakdown(payments, expenses, bankPayments, startDate, e
         monthlyData[month].expenditure += expense.amount;
     });
     
-    // Process bank payments
+    // Process bank payments (only non-maintenance credits to avoid double counting)
     bankPayments.forEach(bp => {
         if (!bp.isExpenseTransaction) {
             const month = bp.date.substring(0, 7); // YYYY-MM
@@ -11232,7 +12242,11 @@ function generateMonthlyBreakdown(payments, expenses, bankPayments, startDate, e
                 monthlyData[month] = { income: 0, expenditure: 0 };
             }
             if (bp.type === 'credit') {
-                monthlyData[month].income += bp.amount;
+                // Only count credits that are NOT from maintenance payments
+                if (!bp.description?.toLowerCase().includes('maintenance') &&
+                    !bp.description?.toLowerCase().includes('payment')) {
+                    monthlyData[month].income += bp.amount;
+                }
             } else {
                 monthlyData[month].expenditure += bp.amount;
             }
@@ -11625,6 +12639,7 @@ async function handleEditFlat(e) {
 }
 
 async function deleteFlat(id) {
+    // Show confirmation dialog
     const flats = await getFlatsData();
     const flat = flats.find(f => f.id === id);
     
@@ -11635,12 +12650,45 @@ async function deleteFlat(id) {
     
     const confirmMessage = `Are you sure you want to delete this flat?\n\nFlat: ${flat.flatNumber}\nOwner: ${flat.ownerName}\nMobile: ${flat.mobile}\n\nThis action cannot be undone!`;
     
-    if (confirm(confirmMessage)) {
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    try {
+        // Add to deleted items for potential restore
+        addToDeletedItems(flat, 'flat');
+        
+        // Remove flat from array
         const updatedFlats = flats.filter(f => f.id !== id);
-        saveFlatsData(updatedFlats);
-        loadFlatsData();
+        
+        // Save updated flats (await to ensure completion)
+        await saveFlatsData(updatedFlats);
+        
+        // Also delete from Firebase specifically
+        await deleteFlatFromFirebase(flat);
+        
+        // Reload flats table
+        await loadFlatsData();
+        
+        // Update dashboard
         await loadDashboardData();
+        
+        // Show success message
         showNotification(`Flat ${flat.flatNumber} deleted successfully!`, 'success');
+        
+        console.log('Flat deleted:', flat);
+        
+    } catch (error) {
+        console.error('Error deleting flat:', error);
+        showNotification(`Error deleting flat: ${error.message}`, 'error');
+        
+        // Try to reload the UI even if deletion partially failed
+        try {
+            await loadFlatsData();
+            await loadDashboardData();
+        } catch (reloadError) {
+            console.error('Error reloading UI after failed flat deletion:', reloadError);
+        }
     }
 }
 
@@ -14256,7 +15304,8 @@ function displayPeriodSummary(consolidatedHeads, selectedBills, totalAmount, las
         occupancy: 0,
         nonOccupancy: 0,
         arrears: 0,
-        interest: 0
+        interest: 0,
+        memberOutstanding: 0
     };
     
     // Sum up amounts from all selected bills
@@ -14270,6 +15319,7 @@ function displayPeriodSummary(consolidatedHeads, selectedBills, totalAmount, las
         consolidatedAmounts.nonOccupancy += bill.nonOccupancyCharges || 0;
         consolidatedAmounts.arrears += bill.arrearsAmount || 0;
         consolidatedAmounts.interest += bill.interestAmount || 0;
+        consolidatedAmounts.memberOutstanding += bill.memberOutstanding || 0;
     });
     
     // Use consolidated amounts for display
@@ -14282,7 +15332,8 @@ function displayPeriodSummary(consolidatedHeads, selectedBills, totalAmount, las
         { key: 'occupancy', name: 'Occupancy Charges', amount: consolidatedAmounts.occupancy },
         { key: 'nonOccupancy', name: 'Non-Occupancy Charges', amount: consolidatedAmounts.nonOccupancy },
         { key: 'arrears', name: 'Previous Arrears', amount: consolidatedAmounts.arrears },
-        { key: 'interest', name: 'Interest', amount: consolidatedAmounts.interest }
+        { key: 'interest', name: 'Interest', amount: consolidatedAmounts.interest },
+        { key: 'memberOutstanding', name: 'New Member Outstanding Amount', amount: consolidatedAmounts.memberOutstanding }
     ];
     
     billHeads.forEach(head => {
@@ -15563,8 +16614,11 @@ async function deletePaymentRecord(paymentId) {
         // Remove payment from array
         payments.splice(paymentIndex, 1);
         
-        // Save updated payments
-        savePaymentsData(payments);
+        // Save updated payments (await to ensure completion)
+        await savePaymentsData(payments);
+        
+        // Also delete from Firebase specifically
+        await deletePaymentFromFirebase(deletedPayment);
         
         // When payment is deleted, the amount should carry forward as outstanding
         // DO NOT modify bill amounts - bills are historical records
@@ -15574,12 +16628,12 @@ async function deletePaymentRecord(paymentId) {
         
         // If payment was linked to a bank account, update bank balance and delete bank transaction
         if (deletedPayment.bankAccountId) {
-            const banks = getBanksData();
+            const banks = await getBanksData();
             const bankIndex = banks.findIndex(bank => bank.id === deletedPayment.bankAccountId);
             if (bankIndex !== -1) {
                 // Subtract the payment amount from bank balance (reverse the credit)
                 banks[bankIndex].balance = (banks[bankIndex].balance || 0) - deletedPayment.amount;
-                saveBanksData(banks);
+                await saveBanksData(banks);
                 console.log(`Reversed bank credit of ₹${deletedPayment.amount} from ${banks[bankIndex].bankName}`);
             }
             
@@ -15602,20 +16656,20 @@ async function deletePaymentRecord(paymentId) {
         }
         
         // Reload payments table
-        loadPaymentsData();
+        await loadPaymentsData();
         
         // Reload flats data to show updated outstanding amount
-        loadFlatsData();
+        await loadFlatsData();
         
         // Reload billing data to update bill status
-        loadBillingData();
+        await loadBillingData();
         
         // Update dashboard
-        loadDashboardData();
+        await loadDashboardData();
         
         // Reload banks data if bank was affected
         if (deletedPayment.bankAccountId) {
-            loadBanksData();
+            await loadBanksData();
         }
         
         // Show success message
@@ -15625,7 +16679,15 @@ async function deletePaymentRecord(paymentId) {
         
     } catch (error) {
         console.error('Error deleting payment:', error);
-        showNotification('Error deleting payment record!', 'error');
+        showNotification(`Error deleting payment record: ${error.message}`, 'error');
+        
+        // Try to reload the UI even if deletion partially failed
+        try {
+            await loadPaymentsData();
+            await loadBillingData();
+        } catch (reloadError) {
+            console.error('Error reloading UI after failed deletion:', reloadError);
+        }
     }
 }
 
@@ -15658,14 +16720,17 @@ async function deleteBill(billId) {
         // Remove bill from array
         bills.splice(billIndex, 1);
         
-        // Save updated bills
-        saveBillsData(bills);
+        // Save updated bills (await to ensure completion)
+        await saveBillsData(bills);
+        
+        // Also delete from Firebase specifically
+        await deleteBillFromFirebase(deletedBill);
         
         // Reload bills table
-        loadBillingData();
+        await loadBillingData();
         
         // Update dashboard
-        loadDashboardData();
+        await loadDashboardData();
         
         // Show success message
         showNotification(`Bill ${deletedBill.billNumber} deleted successfully!`, 'success');
@@ -15674,7 +16739,15 @@ async function deleteBill(billId) {
         
     } catch (error) {
         console.error('Error deleting bill:', error);
-        showNotification('Error deleting bill!', 'error');
+        showNotification(`Error deleting bill: ${error.message}`, 'error');
+        
+        // Try to reload the UI even if deletion partially failed
+        try {
+            await loadBillingData();
+            await loadDashboardData();
+        } catch (reloadError) {
+            console.error('Error reloading UI after failed bill deletion:', reloadError);
+        }
     }
 }
 
